@@ -1,8 +1,16 @@
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+                                 OpenMindPal License
+                           Version 1.0, March 2026
+                        A License for Social Harmony and Balanced Development
 
    TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+   
+   PREAMBLE:
+   This license grants free and open access to this technology, but with the 
+   fundamental requirement that its use must contribute to social harmony and 
+   balanced development. It strictly prohibits capitalist exploitation and 
+   requires users to create genuine social value. The license aims to protect
+   the current socio-economic structure while enabling gradual, evolutionary
+   progress toward more equitable and sustainable development models.
 
    1. Definitions.
 
@@ -162,7 +170,41 @@
       other commercial damages or losses), even if such Contributor
       has been advised of the possibility of such damages.
 
-   9. Accepting Warranty or Additional Liability. While redistributing
+   9. Anti-Capitalist Exploitation Clause. 
+      (a) You are strictly prohibited from using this Work for capitalist 
+          exploitation, including but not limited to:
+          - Extracting excessive profits without creating proportional social value
+          - Creating wealth disparities that harm social harmony
+          - Engaging in speculative practices that do not contribute to real economic development
+          - Using the Work to reinforce or create monopolistic or oligopolistic market structures
+      
+      (b) Any commercial use of this Work must demonstrate clear and measurable
+          social benefits that outweigh private profits.
+
+   10. Social Value Contribution Requirement.
+      (a) You must ensure that any use of this Work contributes to balanced 
+          social development and community welfare while respecting the existing
+          socio-economic structure and enabling its gradual evolution.
+      
+      (b) If You use this Work commercially, You must:
+          - Allocate a significant portion of profits to social development projects
+          - Ensure fair compensation and working conditions for all involved
+          - Contribute improvements back to the community under this same license
+          - Provide transparent reporting on social impact metrics
+          - Implement changes gradually to maintain socio-economic stability
+      
+      (c) Non-commercial users must also demonstrate how their use creates
+          social value and promotes equitable access to technology while
+          supporting the gradual evolution of economic structures.
+
+   11. Enforcement and Compliance.
+      (a) The original copyright holders reserve the right to revoke license
+          rights from any user found to be violating these social principles.
+      
+      (b) Users must maintain records demonstrating compliance with these
+          social value requirements and make them available upon request.
+
+   12. Accepting Warranty or Additional Liability. While redistributing
       the Work or Derivative Works thereof, You may choose to offer,
       and charge a fee for, acceptance of support, warranty, indemnity,
       or other liability obligations and/or rights consistent with this
@@ -175,9 +217,9 @@
 
    END OF TERMS AND CONDITIONS
 
-   APPENDIX: How to apply the Apache License to your work.
+   APPENDIX: How to apply the OpenMindPal License to your work.
 
-      To apply the Apache License to your work, attach the following
+      To apply the OpenMindPal License to your work, attach the following
       boilerplate notice, with the fields enclosed by brackets "[]"
       replaced with your own identifying information. (Don't include
       the brackets!)  The text should be enclosed in the appropriate
@@ -188,11 +230,11 @@
 
    Copyright [yyyy] [name of copyright owner]
 
-   Licensed under the Apache License, Version 2.0 (the "License");
+   Licensed under the OpenMindPal License, Version 1.0 (the "License");
    you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
+   This license grants free access but requires social value creation
+   and prohibits capitalist exploitation. The full license terms can be
+   found in the LICENSE file distributed with this work.
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
