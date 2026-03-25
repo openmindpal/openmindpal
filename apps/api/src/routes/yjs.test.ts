@@ -6,6 +6,12 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import crypto from "node:crypto";
 
+// @ts-ignore -- ws types not installed, but package available via @fastify/websocket
+import WebSocket from "ws";
+
+// Polyfill WebSocket for Node.js test environment
+(globalThis as any).WebSocket = WebSocket;
+
 vi.mock("../modules/auth/authz", () => {
   return {
     authorize: vi.fn(async (params: any) => {

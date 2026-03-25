@@ -46,6 +46,8 @@ jobs:
       POSTGRES_PASSWORD: openslin
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: "6379"
+      # Disable eval admission gate in tests to allow specific error codes
+      EVAL_ADMISSION_REQUIRED_KINDS: ""
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

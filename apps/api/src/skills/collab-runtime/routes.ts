@@ -244,7 +244,7 @@ export const collabRuntimeRoutes: FastifyPluginAsync = async (app) => {
         payloadDigest: { reason: "plan_failed", category: planFailureCategory, suggestedCount: planResult.rawSuggestionCount, pickedCount: planResult.filteredSuggestionCount, toolCatalogAvailable: Boolean(planResult.toolCatalog) },
       });
       req.ctx.audit!.outputDigest = { collabRunId: collab.collabRunId, status: "stopped", reason: "plan_empty" };
-      return {
+      return reply.status(409).send({
         collabRunId: collab.collabRunId,
         runId: null,
         jobId: null,
@@ -261,7 +261,8 @@ export const collabRuntimeRoutes: FastifyPluginAsync = async (app) => {
                   ? ("COLLAB_PLAN_SUGGESTION_DISABLED" as const)
                   : ("COLLAB_PLAN_EMPTY" as const),
         details: { category: planFailureCategory },
-      };
+        traceId: req.ctx.traceId,
+      });
     }
 
     const roleAllowed = new Map<string, Set<string> | null>();
@@ -376,14 +377,15 @@ export const collabRuntimeRoutes: FastifyPluginAsync = async (app) => {
 
     if (!pipelineResult.ok) {
       req.ctx.audit!.outputDigest = { collabRunId: collab.collabRunId, status: "stopped", reason: "retriever_tool_disabled", toolRef: pipelineResult.retrieverToolRef };
-      return {
+      return reply.status(409).send({
         collabRunId: collab.collabRunId,
         runId: null,
         jobId: null,
         stepId: null,
         status: "stopped" as const,
         errorCode: "COLLAB_RETRIEVER_DISABLED" as const,
-      };
+        traceId: req.ctx.traceId,
+      });
     }
 
     const { updated, firstStepId } = pipelineResult;
