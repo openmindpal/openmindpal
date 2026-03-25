@@ -120,7 +120,7 @@ export async function knowledgeSearch(params: { pool: Pool; tenantId: string; sp
     pool: params.pool,
     q: { tenantId: params.tenantId, spaceId: params.spaceId, subjectId: params.subjectId, embeddingModelRef: "minhash:16@1", vector: qMinhash, topK: embLimit, filters: hasDocFilter ? { documentIds: docIds } : undefined },
   });
-  const chunkIds = vectorRes.results.map((r) => r.chunkId).filter(Boolean).slice(0, embLimit);
+  const chunkIds = vectorRes.results.map((r: { chunkId: string; score: number }) => r.chunkId).filter(Boolean).slice(0, embLimit);
   const scoreById = new Map<string, number>();
   for (const r of vectorRes.results) if (r && r.chunkId) scoreById.set(String(r.chunkId), Number(r.score ?? 0));
   const embRes =
