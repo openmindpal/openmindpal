@@ -54,9 +54,11 @@ export default function SettingsClient(props: { locale: string }) {
   }
 
   function generateCredential() {
-    // Generate a simple dev credential with random user ID
-    const randomId = Math.random().toString(36).substring(2, 10);
-    const generated = `dev:user_${randomId}`;
+    // Generate a secure credential with UUID-like random ID
+    // Format: dev:user_<timestamp>_<random> to ensure uniqueness
+    const timestamp = Date.now().toString(36);
+    const randomPart = crypto.randomUUID().replace(/-/g, "").substring(0, 12);
+    const generated = `dev:user_${timestamp}_${randomPart}`;
     setAuthToken(generated);
     setClientAuthToken(generated);
     setAuthTokenStatus("set");
