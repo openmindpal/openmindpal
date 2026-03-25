@@ -1,0 +1,33 @@
+{
+  "identity": {
+    "name": "imap.poll",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "read",
+    "resourceType": "channel",
+    "action": "poll",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "mailbox": { "type": "string", "required": true },
+        "uidNext": { "type": "number", "required": true }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "uid": { "type": "number", "required": true },
+        "internalDate": { "type": "string", "required": true },
+        "summary": { "type": "json", "required": true },
+        "body": { "type": "json", "required": true },
+        "attachments": { "type": "json", "required": true },
+        "watermarkAfter": { "type": "json", "required": true }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

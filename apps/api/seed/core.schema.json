@@ -1,0 +1,40 @@
+{
+  "name": "core",
+  "displayName": {
+    "zh-CN": "核心 Schema",
+    "en-US": "Core Schema"
+  },
+  "entities": {
+    "notes": {
+      "displayName": {
+        "zh-CN": "笔记",
+        "en-US": "Notes"
+      },
+      "fields": {
+        "title": {
+          "type": "string",
+          "required": true,
+          "displayName": {
+            "zh-CN": "标题",
+            "en-US": "Title"
+          }
+        },
+        "content": {
+          "type": "string",
+          "displayName": {
+            "zh-CN": "内容",
+            "en-US": "Content"
+          }
+        },
+        "createdAt": {
+          "type": "datetime",
+          "displayName": {
+            "zh-CN": "创建时间",
+            "en-US": "Created At"
+          }
+        }
+      }
+    }
+  }
+}
+

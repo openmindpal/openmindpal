@@ -1,0 +1,26 @@
+{
+  "name": "openslin",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @openslin/api",
+    "dev:web": "npm run dev -w @openslin/web",
+    "dev:worker": "npm run dev -w @openslin/worker",
+    "build": "npm -ws run build --if-present",
+    "test": "npm run test -w @openslin/api && npm run test -w @openslin/device-agent && npm run test -w @openslin/web && npm run test -w @openslin/worker && npm run test -w @openslin/shared",
+    "lint": "npm -ws run lint --if-present",
+    "verify:arch07": "npm run build && npm run lint && npm test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "description": "",
+  "devDependencies": {
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.2"
+  }
+}

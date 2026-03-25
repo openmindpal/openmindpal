@@ -1,0 +1,130 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_web_e2e:
+        description: "Run web e2e job (WEB_E2E=1)"
+        required: false
+        default: "false"
+  schedule:
+    - cron: "0 3 * * 0"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: openslin
+          POSTGRES_USER: openslin
+          POSTGRES_PASSWORD: openslin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openslin -d openslin"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: openslin
+      POSTGRES_USER: openslin
+      POSTGRES_PASSWORD: openslin
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: node scripts/secret-scan.mjs
+      - run: npm -ws run build --if-present
+      - run: npm -w apps/api test
+      - run: npm -w apps/worker test
+      - run: npm -w apps/device-agent test
+      - run: npm -w apps/web build
+      - run: npm -w packages/shared build
+
+  web-e2e:
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_web_e2e == 'true')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: openslin
+          POSTGRES_USER: openslin
+          POSTGRES_PASSWORD: openslin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openslin -d openslin"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: openslin
+      POSTGRES_USER: openslin
+      POSTGRES_PASSWORD: openslin
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      API_PORT: "3001"
+      API_CORS_ORIGINS: "http://127.0.0.1:3000"
+      NEXT_PUBLIC_API_BASE: "http://127.0.0.1:3001"
+      WEB_E2E: "1"
+      API_BASE: "http://127.0.0.1:3001"
+      WEB_BASE: "http://127.0.0.1:3000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: node scripts/secret-scan.mjs
+      - run: npm -ws run build --if-present
+      - run: npm -w apps/api db:seed
+      - name: start api
+        run: |
+          npm -w apps/api start &
+          for i in {1..60}; do
+            curl -sf http://127.0.0.1:3001/healthz >/dev/null && break
+            sleep 1
+          done
+      - name: start web
+        run: |
+          npm -w apps/web start -p 3000 &
+          for i in {1..60}; do
+            curl -sf http://127.0.0.1:3000/ >/dev/null && break
+            sleep 1
+          done
+      - run: npm -w apps/web test

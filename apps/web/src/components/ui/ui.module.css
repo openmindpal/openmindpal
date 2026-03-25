@@ -1,0 +1,191 @@
+.pageHeader {
+  display: flex;
+  gap: var(--sl-space-4);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--sl-space-5) var(--sl-space-6);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--sl-radius-3);
+  background: var(--sl-surface);
+  box-shadow: var(--sl-shadow-xs);
+}
+
+.pageHeaderMain {
+  min-width: 0;
+}
+
+.pageHeaderTitle {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: var(--sl-fg);
+}
+
+.pageHeaderDesc {
+  margin-top: var(--sl-space-2);
+  color: var(--sl-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.pageHeaderActions {
+  display: flex;
+  gap: var(--sl-space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.card {
+  border: 1px solid var(--sl-border);
+  border-radius: var(--sl-radius-3);
+  background: var(--sl-surface);
+  box-shadow: var(--sl-shadow-1);
+  transition: box-shadow var(--sl-transition-normal);
+  overflow: hidden;
+}
+
+.card:hover {
+  box-shadow: var(--sl-shadow-2);
+}
+
+.cardTitle {
+  padding: var(--sl-space-4) var(--sl-space-5);
+  border-bottom: 1px solid var(--sl-border);
+  font-weight: 650;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  color: var(--sl-fg);
+}
+
+.cardBody {
+  padding: var(--sl-space-5);
+}
+
+.cardFooter {
+  padding: var(--sl-space-3) var(--sl-space-5);
+  border-top: 1px solid var(--sl-border);
+  color: var(--sl-muted);
+  font-size: 12.5px;
+  background: color-mix(in srgb, var(--sl-bg) 50%, var(--sl-surface));
+}
+
+.tableWrap {
+  border: 1px solid var(--sl-border);
+  border-radius: var(--sl-radius-3);
+  background: var(--sl-surface);
+  overflow: hidden;
+  box-shadow: var(--sl-shadow-xs);
+}
+
+.tableHeader {
+  padding: var(--sl-space-3) var(--sl-space-5);
+  border-bottom: 1px solid var(--sl-border);
+  color: var(--sl-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--sl-bg) 50%, var(--sl-surface));
+}
+
+.tableScroll {
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--sl-border);
+  vertical-align: top;
+  text-align: left;
+  font-size: 13px;
+}
+
+.table thead th {
+  border-top: 0;
+  color: var(--sl-muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--sl-bg) 50%, var(--sl-surface));
+}
+
+.table tbody tr {
+  transition: background var(--sl-transition-fast);
+}
+
+.table tbody tr:hover {
+  background: var(--sl-accent-bg);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--sl-radius-full);
+  border: 1px solid var(--sl-border);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 20px;
+  background: color-mix(in srgb, var(--sl-surface) 60%, transparent);
+  letter-spacing: 0.01em;
+}
+
+.badge[data-tone="success"] {
+  border-color: color-mix(in srgb, var(--sl-success) 40%, transparent);
+  background: var(--sl-success-bg);
+  color: var(--sl-success);
+}
+
+.badge[data-tone="warning"] {
+  border-color: color-mix(in srgb, var(--sl-warning) 40%, transparent);
+  background: var(--sl-warning-bg);
+  color: var(--sl-warning);
+}
+
+.badge[data-tone="danger"] {
+  border-color: color-mix(in srgb, var(--sl-danger) 40%, transparent);
+  background: var(--sl-danger-bg);
+  color: var(--sl-danger);
+}
+
+/* ── Tab Nav ── */
+.tabBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--sl-border);
+  margin-bottom: var(--sl-space-4);
+  overflow-x: auto;
+}
+
+.tabBtn {
+  all: unset;
+  cursor: pointer;
+  padding: var(--sl-space-3) var(--sl-space-5);
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--sl-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color var(--sl-transition-fast), border-color var(--sl-transition-fast);
+  white-space: nowrap;
+}
+
+.tabBtn:hover {
+  color: var(--sl-fg);
+}
+
+.tabBtnActive {
+  color: var(--sl-accent);
+  border-bottom-color: var(--sl-accent);
+}
+
+.tabContent {
+  min-height: 0;
+}
+

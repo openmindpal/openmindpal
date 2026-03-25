@@ -1,0 +1,33 @@
+{
+  "identity": {
+    "name": "egress.method.skill",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "read",
+    "resourceType": "tool",
+    "action": "execute",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "url": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "status": {
+          "type": "number",
+          "required": true
+        }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

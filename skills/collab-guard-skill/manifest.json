@@ -1,0 +1,33 @@
+{
+  "identity": {
+    "name": "collab.guard",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "read",
+    "resourceType": "agent_runtime",
+    "action": "collab.guard",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "plan": { "type": "json", "required": true },
+        "roles": { "type": "json" },
+        "limits": { "type": "json" },
+        "evidence": { "type": "json" }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "allow": { "type": "boolean" },
+        "requiresApproval": { "type": "boolean" },
+        "blockedReasons": { "type": "json" },
+        "recommendedArbiterAction": { "type": "string" }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

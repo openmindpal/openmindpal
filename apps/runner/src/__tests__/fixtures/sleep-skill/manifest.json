@@ -1,0 +1,28 @@
+{
+  "identity": {
+    "name": "test.sleep",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "read",
+    "resourceType": "tool",
+    "action": "execute",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "ms": { "type": "number", "required": true }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "sleptMs": { "type": "number", "required": true }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}
+

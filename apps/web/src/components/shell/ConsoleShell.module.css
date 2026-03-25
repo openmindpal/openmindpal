@@ -1,0 +1,322 @@
+.headerRow {
+  display: flex;
+  gap: var(--sl-space-3);
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.headerLeft {
+  display: flex;
+  gap: var(--sl-space-3);
+  align-items: center;
+  min-width: 0;
+}
+
+.appTitle {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--sl-accent) 0%, var(--sl-accent-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.headerRight {
+  display: flex;
+  gap: var(--sl-space-2);
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.headerRight > a {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sl-muted);
+  padding: 6px 12px;
+  border-radius: var(--sl-radius-2);
+  transition: all var(--sl-transition-fast);
+}
+
+.headerRight > a:hover {
+  color: var(--sl-accent);
+  background: var(--sl-accent-bg);
+}
+
+.paletteBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 450;
+  color: var(--sl-muted);
+  background: var(--sl-bg);
+  border: 1px solid var(--sl-border-strong);
+  border-radius: var(--sl-radius-2);
+  cursor: pointer;
+  transition: all var(--sl-transition-fast);
+  white-space: nowrap;
+}
+
+.paletteBtn:hover {
+  color: var(--sl-accent);
+  border-color: var(--sl-accent-border);
+  background: var(--sl-accent-bg);
+}
+
+.paletteBtnKbd {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.6;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.mobileMenu {
+  display: none;
+  position: relative;
+}
+
+.mobileMenu > summary {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: var(--sl-radius-2);
+  background: var(--sl-surface);
+  list-style: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--sl-transition-fast);
+}
+
+.mobileMenu > summary:hover {
+  background: var(--sl-accent-bg);
+  border-color: var(--sl-accent-border);
+  color: var(--sl-accent);
+}
+
+.mobileMenu > summary:focus-visible {
+  outline: 2px solid var(--sl-accent);
+  outline-offset: 2px;
+}
+
+.mobileMenuPanel {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(320px, 80vw);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--sl-radius-3);
+  background: var(--sl-surface);
+  box-shadow: var(--sl-shadow-3);
+  z-index: 20;
+}
+
+.mobileMenuPanel a {
+  padding: 8px 12px;
+  border-radius: var(--sl-radius-1);
+  font-size: 13px;
+  transition: all var(--sl-transition-fast);
+}
+
+.mobileMenuPanel a:hover {
+  background: var(--sl-accent-bg);
+  color: var(--sl-accent);
+}
+
+.navGroup {
+  padding: var(--sl-space-1) 0;
+}
+
+.navGroup + .navGroup {
+  margin-top: var(--sl-space-2);
+  padding-top: var(--sl-space-2);
+  border-top: 1px solid var(--sl-border);
+}
+
+.navGroupTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sl-muted);
+  padding: var(--sl-space-2) var(--sl-space-3);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.navList {
+  display: grid;
+  gap: 1px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.navLink {
+  display: block;
+  padding: 7px 12px;
+  border-radius: var(--sl-radius-1);
+  border: 1px solid transparent;
+  color: var(--sl-fg-secondary);
+  font-size: 13px;
+  font-weight: 450;
+  transition: all var(--sl-transition-fast);
+  position: relative;
+}
+
+.navLink:focus-visible {
+  outline: 2px solid var(--sl-accent);
+  outline-offset: 1px;
+}
+
+.navLink:hover {
+  background: var(--sl-sidebar-hover);
+  color: var(--sl-accent);
+  border-color: transparent;
+  padding-left: 16px;
+}
+
+.navLinkActive {
+  background: var(--sl-sidebar-active);
+  color: var(--sl-accent);
+  font-weight: 550;
+  border-color: var(--sl-accent-border);
+  padding-left: 16px;
+}
+
+.navLinkActive .navLinkDesc {
+  display: block;
+}
+
+/* ─── Collapsible sub-groups inside governance nav ─── */
+
+.navSubGroup {
+  padding: 0;
+}
+
+.navSubGroup + .navSubGroup {
+  margin-top: 2px;
+}
+
+.navSubGroupToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  margin: 0;
+  border: none;
+  border-radius: var(--sl-radius-1);
+  background: none;
+  color: var(--sl-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all var(--sl-transition-fast);
+  user-select: none;
+}
+
+.navSubGroupToggle:hover {
+  background: var(--sl-sidebar-hover);
+  color: var(--sl-accent);
+}
+
+.navSubGroupToggle:focus-visible {
+  outline: 2px solid var(--sl-accent);
+  outline-offset: 1px;
+}
+
+.navSubGroupArrow {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  transition: transform var(--sl-transition-fast);
+  opacity: 0.5;
+}
+
+.navSubGroupArrow svg {
+  display: block;
+}
+
+.navSubGroupOpen .navSubGroupArrow {
+  transform: rotate(90deg);
+}
+
+.navSubGroupBody {
+  display: grid;
+  gap: 1px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease;
+}
+
+.navSubGroupOpen .navSubGroupBody {
+  max-height: 600px;
+  opacity: 1;
+  padding: 2px 0 4px 0;
+}
+
+.navLinkDesc {
+  display: none;
+  font-size: 11px;
+  color: var(--sl-muted);
+  font-weight: 400;
+  margin-top: 2px;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.navLink:hover .navLinkDesc {
+  display: block;
+}
+
+@media (max-width: 920px) {
+  .headerRight > a {
+    display: none;
+  }
+
+  .mobileMenu {
+    display: block;
+  }
+}
+
+@media (max-width: 600px) {
+  .headerRow {
+    gap: var(--sl-space-2);
+  }
+
+  .appTitle {
+    font-size: 14px;
+  }
+
+  .mobileMenuPanel {
+    width: min(300px, 90vw);
+    max-height: 70vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .navLink {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .navGroupTitle {
+    font-size: 11px;
+    padding: var(--sl-space-2) var(--sl-space-3);
+  }
+}

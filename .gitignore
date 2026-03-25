@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.example
+.next/
+.turbo/
+.DS_Store
+coverage/
+.trae/
+specs/
+社会价值治理机制-透明底线与市场自发调节.md
+**/var/media/
+.data/
+.tmp/
+docs/
+preview-nl2ui.html
+

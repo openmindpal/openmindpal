@@ -1,0 +1,5 @@
+ALTER TABLE spaces
+DROP CONSTRAINT IF EXISTS spaces_ui_mode_check;
+
+ALTER TABLE spaces
+DROP COLUMN IF EXISTS ui_mode;

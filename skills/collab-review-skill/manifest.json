@@ -1,0 +1,30 @@
+{
+  "identity": {
+    "name": "collab.review",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "write",
+    "resourceType": "agent_runtime",
+    "action": "collab.review",
+    "idempotencyRequired": true,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "taskId": { "type": "string" },
+        "mode": { "type": "string" }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "finalAnswer": { "type": "string" },
+        "citationsCount": { "type": "number" },
+        "nextActions": { "type": "json" }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

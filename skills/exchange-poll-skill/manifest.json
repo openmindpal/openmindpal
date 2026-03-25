@@ -1,0 +1,34 @@
+{
+  "identity": {
+    "name": "exchange.poll",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "read",
+    "resourceType": "channel",
+    "action": "poll",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "accessToken": { "type": "string", "required": true },
+        "cursorUrl": { "type": "string", "required": true },
+        "mailbox": { "type": "string", "required": true },
+        "maxMessages": { "type": "number" },
+        "timeoutMs": { "type": "number" }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "messages": { "type": "json", "required": true },
+        "scannedCount": { "type": "number", "required": true },
+        "nextLink": { "type": "string" },
+        "deltaLink": { "type": "string" }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

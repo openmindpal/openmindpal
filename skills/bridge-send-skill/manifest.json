@@ -1,0 +1,35 @@
+{
+  "identity": {
+    "name": "bridge.send",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "write",
+    "resourceType": "channel",
+    "action": "send",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "baseUrl": { "type": "string", "required": true },
+        "secret": { "type": "string", "required": true },
+        "provider": { "type": "string", "required": true },
+        "workspaceId": { "type": "string", "required": true },
+        "requestId": { "type": "string", "required": true },
+        "traceId": { "type": "string", "required": true },
+        "to": { "type": "json", "required": true },
+        "message": { "type": "json", "required": true },
+        "idempotencyKey": { "type": "string", "required": true }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "ok": { "type": "boolean", "required": true }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

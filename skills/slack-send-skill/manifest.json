@@ -1,0 +1,29 @@
+{
+  "identity": {
+    "name": "slack.send",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "write",
+    "resourceType": "channel",
+    "action": "send",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "botToken": { "type": "string", "required": true },
+        "channel": { "type": "string", "required": true },
+        "text": { "type": "string", "required": true }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "ok": { "type": "boolean", "required": true }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

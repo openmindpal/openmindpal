@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS secret_records_unique_active_per_instance;
