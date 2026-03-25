@@ -54,6 +54,7 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: node scripts/secret-scan.mjs
+      - run: npm -w packages/shared run build
       - run: npm -ws run build --if-present
       - run: npm -w apps/api test
       - run: npm -w apps/worker test
@@ -111,6 +112,7 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: node scripts/secret-scan.mjs
+      - run: npm -w packages/shared run build
       - run: npm -ws run build --if-present
       - run: npm -w apps/api db:seed
       - name: start api
