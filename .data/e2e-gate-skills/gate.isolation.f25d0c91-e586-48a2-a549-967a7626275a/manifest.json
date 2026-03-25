@@ -1,0 +1,33 @@
+{
+  "identity": {
+    "name": "gate.isolation.f25d0c91-e586-48a2-a549-967a7626275a",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "read",
+    "resourceType": "tool",
+    "action": "execute",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "text": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "echo": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

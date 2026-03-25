@@ -1,0 +1,33 @@
+{
+  "identity": {
+    "name": "gate.trust.340903ed-4f99-4b6f-963d-0b51b773fac1",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "read",
+    "resourceType": "tool",
+    "action": "execute",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "text": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "echo": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

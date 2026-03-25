@@ -1,0 +1,33 @@
+{
+  "identity": {
+    "name": "gate.sbom.fbd73e44-b164-4763-9811-f4d1e71d1e92",
+    "version": "1.0.0"
+  },
+  "contract": {
+    "scope": "read",
+    "resourceType": "tool",
+    "action": "execute",
+    "idempotencyRequired": false,
+    "riskLevel": "low",
+    "approvalRequired": false
+  },
+  "io": {
+    "inputSchema": {
+      "fields": {
+        "text": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    "outputSchema": {
+      "fields": {
+        "echo": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  },
+  "entry": "dist/index.js"
+}

@@ -1,0 +1,1 @@
+{"status":200,"csp":"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'","contentType":"text/html; charset=utf-8"}
