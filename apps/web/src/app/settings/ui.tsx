@@ -53,6 +53,16 @@ export default function SettingsClient(props: { locale: string }) {
     setConsoleErr("");
   }
 
+  function generateCredential() {
+    // Generate a simple dev credential with random user ID
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const generated = `dev:user_${randomId}`;
+    setAuthToken(generated);
+    setClientAuthToken(generated);
+    setAuthTokenStatus("set");
+    setConsoleErr("");
+  }
+
   /* ─── NL2UI Style Preferences ─── */
 
   async function loadNl2uiPrefs() {
@@ -156,6 +166,7 @@ export default function SettingsClient(props: { locale: string }) {
               placeholder={t(props.locale, "settings.auth.tokenPlaceholder")}
               style={{ width: 520 }}
             />
+            <button onClick={generateCredential}>{t(props.locale, "settings.auth.generate")}</button>
             <button onClick={saveToken}>{t(props.locale, "action.save")}</button>
             <button onClick={clearToken}>{t(props.locale, "action.clear")}</button>
           </div>
