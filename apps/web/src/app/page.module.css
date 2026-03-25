@@ -19,6 +19,15 @@
   position: relative;
 }
 
+/* Hide layout during SSR hydration to prevent flash */
+.splitHidden {
+  visibility: hidden;
+}
+
+.splitMounted {
+  visibility: visible;
+}
+
 /* ─── Left Content Panel ──────────────────────────────────────────── */
 
 .panelSide {

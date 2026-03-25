@@ -29,6 +29,7 @@ export default function HomeChat(props: { locale: string }) {
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const initialScrollDoneRef = useRef(false); // Track if initial scroll is done
 
   const [draft, setDraft] = useState("");
   const [flow, setFlow] = useState<ChatFlowItem[]>([]);
@@ -85,13 +86,16 @@ export default function HomeChat(props: { locale: string }) {
 
   /* ─── Split layout state (left panel width, collapsed states) ─── */
   const SPLIT_KEY = "openslin_split_layout";
-  const [leftWidth, setLeftWidth] = useState<number>(50); // percentage
+  
+  // Track if layout is mounted on client to prevent SSR hydration flash
+  const [layoutMounted, setLayoutMounted] = useState(false);
+  const [leftWidth, setLeftWidth] = useState<number>(50);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
 
-  // Persist and restore split layout
+  // Restore layout from localStorage on client mount (runs once)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SPLIT_KEY);
@@ -102,10 +106,15 @@ export default function HomeChat(props: { locale: string }) {
         if (typeof saved.rightCollapsed === "boolean") setRightCollapsed(saved.rightCollapsed);
       }
     } catch { /* ignore */ }
+    // Mark layout as mounted after restoring state
+    setLayoutMounted(true);
   }, []);
+
+  // Persist split layout changes
   useEffect(() => {
+    if (!layoutMounted) return; // Don't persist during initial mount
     try { localStorage.setItem(SPLIT_KEY, JSON.stringify({ leftWidth, leftCollapsed, rightCollapsed })); } catch { /* ignore */ }
-  }, [leftWidth, leftCollapsed, rightCollapsed]);
+  }, [leftWidth, leftCollapsed, rightCollapsed, layoutMounted]);
 
   // Drag resize handlers
   const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -259,7 +268,13 @@ export default function HomeChat(props: { locale: string }) {
   }, [cmdOpen, maximizedNl2ui]);
 
   /* auto-scroll on new messages */
-  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [flow]);
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    // Use instant scroll for initial load, smooth scroll for new messages
+    const behavior = initialScrollDoneRef.current ? "smooth" : "instant";
+    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
+    initialScrollDoneRef.current = true;
+  }, [flow]);
 
   useEffect(() => {
     function onOnline() {
@@ -726,7 +741,7 @@ export default function HomeChat(props: { locale: string }) {
       </header>
 
       {/* ── Split container (left panel + divider + right chat) ── */}
-      <div className={styles.splitContainer} ref={splitRef}>
+      <div className={`${styles.splitContainer} ${layoutMounted ? styles.splitMounted : styles.splitHidden}`} ref={splitRef}>
         {/* ── Left Content Panel ── */}
         <div
           className={`${styles.panelSide} ${leftCollapsed ? styles.panelCollapsed : ""}`}
