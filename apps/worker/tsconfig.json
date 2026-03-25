@@ -4,11 +4,7 @@
     "composite": true,
     "declaration": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "baseUrl": ".",
-    "paths": {
-      "@openslin/shared": ["../../packages/shared/src/index.ts"]
-    }
+    "rootDir": "src"
   },
   "references": [{ "path": "../../packages/shared" }],
   "include": ["src/**/*.ts"]

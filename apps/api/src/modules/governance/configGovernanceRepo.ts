@@ -283,7 +283,7 @@ export function getRegistryInfo(): Array<{
   description: string;
   scopes: string[];
 }> {
-  return getRuntimeMutableConfigs().map((e) => ({
+  return getRuntimeMutableConfigs().map((e: ConfigEntry) => ({
     envKey: e.envKey,
     valueType: e.valueType,
     defaultValue: e.defaultValue,

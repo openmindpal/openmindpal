@@ -38,7 +38,7 @@ export function summarizePromptInjection(
     hitCount: scan.hits.length,
     maxSeverity: scan.maxSeverity,
     target,
-    ruleIds: scan.hits.map((h) => h.ruleId),
+    ruleIds: scan.hits.map((h: { ruleId: string }) => h.ruleId),
     decision,
     mode,
     result: decision,
