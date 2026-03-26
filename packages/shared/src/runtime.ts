@@ -132,7 +132,15 @@ export function normalizeNetworkPolicy(v: unknown): NetworkPolicy {
  */
 export function isAllowedHost(allowedDomains: string[], host: string): boolean {
   const h = host.toLowerCase();
-  return allowedDomains.some((d) => d.toLowerCase() === h);
+  return allowedDomains.some((d) => {
+    const dl = d.toLowerCase();
+    // 支持通配符 "*" 允许所有域名
+    if (dl === "*") return true;
+    // 支持通配符前缀如 "*.example.com"
+    if (dl.startsWith("*.") && h.endsWith(dl.slice(1))) return true;
+    // 精确匹配
+    return dl === h;
+  });
 }
 
 /**
