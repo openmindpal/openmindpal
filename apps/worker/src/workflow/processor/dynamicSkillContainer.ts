@@ -20,7 +20,12 @@ function buildContainerRunnerScript() {
       const pathName = String(u.pathname||'/') || '/';
       const m = String(method||'GET').toUpperCase();
       const allowedDomains = net && Array.isArray(net.allowedDomains) ? net.allowedDomains : [];
-      const byDomain = allowedDomains.some(d=>String(d||'').toLowerCase()===host.toLowerCase());
+      const byDomain = allowedDomains.some(d=>{
+        const dl=String(d||'').toLowerCase();
+        if(dl==='*')return true;
+        if(dl.startsWith('*.')&&host.endsWith(dl.slice(1)))return true;
+        return dl===host;
+      });
       if (byDomain) return { allowed:true, host, method:m, reason:null, match:{ kind:'allowedDomain' } };
       const rules = net && Array.isArray(net.rules) ? net.rules : [];
       for (const r of rules) {
