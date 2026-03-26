@@ -430,6 +430,7 @@
   "chat.error.BINDING_MISSING": "No model binding configured. Please configure in Settings > Model Onboarding.",
   "chat.error.POLICY_VIOLATION": "Request blocked by security policy. Please contact admin.",
   "chat.error.INTERNAL_ERROR": "Internal error. Please retry later.",
+  "chat.error.EMPTY_REPLY": "Model returned no content. Please retry or rephrase.",
   "chat.stream.stale": "Connection stalled (no data for a while). Please retry.",
   "chat.network.restored": "Network is back. You can retry now.",
   "chat.nl2ui.error.default": "UI generation failed",

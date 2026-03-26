@@ -1,5 +1,5 @@
-import type { WorkerSkillContribution } from "../lib/workerSkillContract";
-import { tickTriggers } from "../triggers/ticker";
+import type { WorkerSkillContribution } from "../../lib/workerSkillContract";
+import { tickTriggers } from "../../triggers/ticker";
 
 export const triggerEngineWorker: WorkerSkillContribution = {
   skillName: "trigger.engine",

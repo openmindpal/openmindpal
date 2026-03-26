@@ -7,7 +7,7 @@ import { invokeModelChat, parseToolCallsFromOutput, type LlmSubject } from "../.
 import type { OrchestratorTurnRequest, OrchestratorTurnResponse } from "./model";
 import { getSessionContext, upsertSessionContext, type SessionMessage } from "../../memory-manager/modules/sessionContextRepo";
 import { searchMemory, listRecentTaskStates } from "../../memory-manager/modules/repo";
-import { listToolDefinitions, getToolVersionByRef, type ToolDefinition, type ToolVersion } from "../../../modules/tools/toolRepo";
+import { getLatestReleasedToolVersion, listToolDefinitions, getToolVersionByRef, type ToolDefinition, type ToolVersion } from "../../../modules/tools/toolRepo";
 import { resolveEffectiveToolRef } from "../../../modules/tools/resolve";
 import { isToolEnabled } from "../../../modules/governance/toolGovernanceRepo";
 
@@ -153,19 +153,25 @@ export async function discoverEnabledTools(params: {
 
     const enabledTools: EnabledTool[] = [];
     for (const def of orderedDefs) {
-      const effRef = await resolveEffectiveToolRef({
+      let effRef = await resolveEffectiveToolRef({
         pool: params.pool,
         tenantId: params.tenantId,
         spaceId: params.spaceId,
         name: def.name,
       });
       if (!effRef) continue;
-      const enabled = await isToolEnabled({
-        pool: params.pool,
-        tenantId: params.tenantId,
-        spaceId: params.spaceId,
-        toolRef: effRef,
-      });
+      let enabled = await isToolEnabled({ pool: params.pool, tenantId: params.tenantId, spaceId: params.spaceId, toolRef: effRef });
+      if (!enabled) {
+        const latest = await getLatestReleasedToolVersion(params.pool, params.tenantId, def.name);
+        const latestRef = latest?.toolRef ?? null;
+        if (latestRef && latestRef !== effRef) {
+          const enabled2 = await isToolEnabled({ pool: params.pool, tenantId: params.tenantId, spaceId: params.spaceId, toolRef: latestRef });
+          if (enabled2) {
+            effRef = latestRef;
+            enabled = true;
+          }
+        }
+      }
       if (!enabled) continue;
       const ver = await getToolVersionByRef(params.pool, params.tenantId, effRef);
       if (!ver || ver.status !== "released") continue;
@@ -246,6 +252,18 @@ function conversationTtlMs() {
   const rawDays = Number(process.env.ORCHESTRATOR_CONVERSATION_TTL_DAYS ?? "7");
   const days = clampInt(Number.isFinite(rawDays) ? Math.floor(rawDays) : 7, 1, 30);
   return days * 24 * 60 * 60 * 1000;
+}
+
+function extractKnowledgeSearchQuery(msg: string) {
+  const s = msg.trim();
+  const prefixes = ["搜索知识库", "搜索 知识库", "搜索", "查找知识库", "查找", "search knowledge base", "search knowledge", "search"];
+  for (const p of prefixes) {
+    if (s.toLowerCase().startsWith(p.toLowerCase())) {
+      const q = s.slice(p.length).trim();
+      return q || s;
+    }
+  }
+  return s;
 }
 
 export async function orchestrateChatTurn(params: {
@@ -352,6 +370,21 @@ export async function orchestrateChatTurn(params: {
       riskLevel: tool?.def.riskLevel ?? "low",
       approvalRequired: tool?.def.approvalRequired ?? false,
     });
+  }
+
+  if (!validatedSuggestions.length && spaceId) {
+    const hasSearchIntent = /搜索|查找|search/i.test(userContent);
+    if (hasSearchIntent) {
+      const t = toolDiscovery.tools.find((x) => x.name === "knowledge.search");
+      if (t?.toolRef) {
+        validatedSuggestions.push({
+          toolRef: t.toolRef,
+          inputDraft: { query: extractKnowledgeSearchQuery(userContent), limit: 5 },
+          riskLevel: t.def.riskLevel ?? "low",
+          approvalRequired: t.def.approvalRequired ?? false,
+        });
+      }
+    }
   }
 
   const modelFallback = modelError

@@ -1,6 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import "./otel";
 import { SpanStatusCode, context, trace } from "@opentelemetry/api";
+import { validateProductionBaseline } from "@openslin/shared";
 import { loadConfig } from "./config";
 import { createPool } from "./db/pool";
 import { attachJobTraceCarrier, extractJobTraceContext } from "./lib/tracing";
@@ -29,14 +30,32 @@ import { initWorkerSkills } from "./skills/registry";
 const tracer = trace.getTracer("openslin-worker");
 
 async function main() {
+  // P0-04: 生产隔离基线启动校验
+  const baselineResult = validateProductionBaseline(process.env, ["process", "container"]);
+  if (!baselineResult.valid) {
+    console.error(
+      `[worker] Production baseline validation FAILED. Violations: ${baselineResult.violations.join(", ")}. ` +
+      `Startup will continue but dynamic Skill execution may be restricted.`
+    );
+  } else if (baselineResult.policy.isProduction) {
+    console.log(
+      `[worker] Production baseline validation passed. ` +
+      `minIsolation=${baselineResult.policy.minIsolation}, trustEnforced=${baselineResult.policy.trustEnforced}`
+    );
+  }
+
   const cfg = loadConfig(process.env);
   const masterKey = cfg.secrets.masterKey;
   const pool = createPool(cfg);
 
-  /* ─── P0-3: 激活 Worker Skill 贡献（knowledge-rag / channel-gateway / notification-outbox 等 8 个） ─── */
+  /* ─── P1-02: 配置驱动的 Worker Skill 启用 ─── */
   try {
-    initWorkerSkills();
-    console.log("[worker] initWorkerSkills: 8 worker skill contributions registered");
+    const skillResult = initWorkerSkills();
+    console.log(
+      `[worker] initWorkerSkills: ${skillResult.registered.length} registered ` +
+      `(core=${skillResult.coreCount}, optional=${skillResult.optionalCount})` +
+      (skillResult.skipped.length > 0 ? `, skipped=${skillResult.skipped.join(",")}` : "")
+    );
   } catch (e: any) {
     console.error("[worker] initWorkerSkills FAILED — worker skill contributions will be unavailable", { error: String(e?.message ?? e) });
   }

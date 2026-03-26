@@ -1,5 +1,5 @@
-import type { WorkerSkillContribution } from "../lib/workerSkillContract";
-import { tickEmailDeliveries } from "../notifications/smtpDelivery";
+import type { WorkerSkillContribution } from "../../lib/workerSkillContract";
+import { tickEmailDeliveries } from "../../notifications/smtpDelivery";
 
 export const notificationOutboxWorker: WorkerSkillContribution = {
   skillName: "notification.outbox",

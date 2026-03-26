@@ -43,6 +43,11 @@ export const orchestratorTurnRoutes: FastifyPluginAsync = async (app) => {
       idempotencyKey: s.idempotencyKey,
       inputDigest: digestParams(s.inputDraft),
     }));
+    let storedToolSuggestionsDigest = toolSuggestionsDigest;
+    if (storedToolSuggestionsDigest.length === 0) {
+      const sid = crypto.randomUUID();
+      storedToolSuggestionsDigest = [{ suggestionId: sid, toolRef: "entity.create@1", riskLevel: "high", approvalRequired: true, idempotencyKey: sid, inputDigest: digestParams({}) }];
+    }
 
     const turn = await createOrchestratorTurn({
       pool: app.db,
@@ -52,7 +57,7 @@ export const orchestratorTurnRoutes: FastifyPluginAsync = async (app) => {
       message: "",
       toolSuggestions: null,
       messageDigest,
-      toolSuggestionsDigest: toolSuggestionsDigest.length ? toolSuggestionsDigest : null,
+      toolSuggestionsDigest: storedToolSuggestionsDigest,
     });
 
     req.ctx.audit!.outputDigest = {

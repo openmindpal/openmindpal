@@ -1,5 +1,5 @@
-import type { WorkerSkillContribution } from "../lib/workerSkillContract";
-import { processMediaJob } from "../media/processor";
+import type { WorkerSkillContribution } from "../../lib/workerSkillContract";
+import { processMediaJob } from "../../media/processor";
 
 export const mediaPipelineWorker: WorkerSkillContribution = {
   skillName: "media.pipeline",

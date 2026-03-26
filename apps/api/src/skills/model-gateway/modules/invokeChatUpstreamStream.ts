@@ -14,7 +14,8 @@ import {
 } from "../../safety-policy/modules/promptInjectionGuard";
 import { findCatalogByRef, isOpenAiCompatibleProvider as isOpenAiCompatProviderFromCatalog } from "./catalog";
 import { getBindingByModelRef, listBindings } from "./bindingRepo";
-import { openAiChatStreamWithSecretRotation } from "./openaiChat";
+import { getEffectiveRoutingPolicy } from "../../../modules/modelGateway/routingPolicyRepo";
+import { openAiChatStreamWithSecretRotation, openAiChatWithSecretRotation } from "./openaiChat";
 import {
   dlpRuleIdsFromSummary,
   getAllowedDomains,
@@ -144,6 +145,7 @@ export async function invokeModelChatUpstreamStream(params: {
     timeoutMs?: number;
     temperature?: number;
     maxTokens?: number;
+    stream?: boolean;
   };
   traceId?: string | null;
   requestId?: string | null;
@@ -226,8 +228,17 @@ export async function invokeModelChatUpstreamStream(params: {
     routeReason = "explicit_modelRef";
     candidates.push(body.modelRef);
   } else {
-    const b = (await listBindings(params.app.db, subject.tenantId, scope.scopeType, scope.scopeId))[0] ?? null;
-    if (b) candidates.push(b.modelRef);
+    // Check routing policy first
+    const policy = await getEffectiveRoutingPolicy({ pool: params.app.db, tenantId: subject.tenantId, spaceId: subject.spaceId ?? null, purpose: body.purpose });
+    const policyEnabled = Boolean(policy?.enabled);
+    if (policyEnabled && policy!.primaryModelRef) {
+      routeReason = "routing_policy";
+      candidates.push(policy!.primaryModelRef, ...(policy!.fallbackModelRefs ?? []));
+    } else {
+      // Fallback to default binding
+      const b = (await listBindings(params.app.db, subject.tenantId, scope.scopeType, scope.scopeId))[0] ?? null;
+      if (b) candidates.push(b.modelRef);
+    }
   }
   const uniqCandidates = Array.from(new Set(candidates.filter(Boolean))).slice(0, 10);
   if (!uniqCandidates.length) throw Errors.badRequest("未配置模型绑定");
@@ -267,28 +278,44 @@ export async function invokeModelChatUpstreamStream(params: {
     }
     const type = await getConnectorType(params.app.db, inst.typeName);
     const allowedDomains = getAllowedDomains({ connectorEgressPolicy: inst.egressPolicy, typeDefaultEgressPolicy: type?.defaultEgressPolicy });
-    const bindingBaseUrlRaw = (binding as any).baseUrl ?? "";
-    if (!bindingBaseUrlRaw) {
-      lastPolicyViolation = { errorCode: "POLICY_VIOLATION", message: { "zh-CN": "Base URL 缺失", "en-US": "Missing base URL" } };
-      attempts.push({ modelRef, status: "error", errorCode: "POLICY_VIOLATION", reason: "base_url_missing", provider: cat.provider });
-      continue;
-    }
-    const bindingBaseUrl =
-      cat.provider === "mock"
-        ? normalizeBaseUrl(bindingBaseUrlRaw, "http")
-        : normalizeOpenAiCompatibleBaseUrl(bindingBaseUrlRaw);
+    const bindingBaseUrlRaw = (binding as any).baseUrl ?? (binding as any).base_url ?? "";
+    let bindingBaseUrl: string | null = null;
     let endpointHost = cat.endpointHost;
-    try {
-      endpointHost = getHostFromBaseUrl(bindingBaseUrl);
-    } catch {
-      lastPolicyViolation = { errorCode: "POLICY_VIOLATION", message: { "zh-CN": "Base URL 非法", "en-US": "Invalid base URL" } };
-      attempts.push({ modelRef, status: "error", errorCode: "POLICY_VIOLATION", reason: "base_url_invalid", provider: cat.provider });
-      continue;
-    }
-    if (!allowedDomains.includes(endpointHost)) {
-      lastPolicyViolation = { errorCode: "POLICY_VIOLATION", message: { "zh-CN": "出站域名不在白名单内", "en-US": "Egress domain is not allowed" } };
-      attempts.push({ modelRef, status: "error", errorCode: "POLICY_VIOLATION", reason: "egress_domain_not_allowed", provider: cat.provider });
-      continue;
+    if (cat.provider === "mock") {
+      if (bindingBaseUrlRaw) {
+        bindingBaseUrl = normalizeBaseUrl(bindingBaseUrlRaw, "http");
+        try {
+          endpointHost = getHostFromBaseUrl(bindingBaseUrl);
+        } catch {
+          lastPolicyViolation = { errorCode: "POLICY_VIOLATION", message: { "zh-CN": "Base URL 非法", "en-US": "Invalid base URL" } };
+          attempts.push({ modelRef, status: "error", errorCode: "POLICY_VIOLATION", reason: "base_url_invalid", provider: cat.provider });
+          continue;
+        }
+        if (!allowedDomains.includes(endpointHost)) {
+          lastPolicyViolation = { errorCode: "POLICY_VIOLATION", message: { "zh-CN": "出站域名不在白名单内", "en-US": "Egress domain is not allowed" } };
+          attempts.push({ modelRef, status: "error", errorCode: "POLICY_VIOLATION", reason: "egress_domain_not_allowed", provider: cat.provider });
+          continue;
+        }
+      }
+    } else {
+      if (!bindingBaseUrlRaw) {
+        lastPolicyViolation = { errorCode: "POLICY_VIOLATION", message: { "zh-CN": "Base URL 缺失", "en-US": "Missing base URL" } };
+        attempts.push({ modelRef, status: "error", errorCode: "POLICY_VIOLATION", reason: "base_url_missing", provider: cat.provider });
+        continue;
+      }
+      bindingBaseUrl = normalizeOpenAiCompatibleBaseUrl(bindingBaseUrlRaw);
+      try {
+        endpointHost = getHostFromBaseUrl(bindingBaseUrl);
+      } catch {
+        lastPolicyViolation = { errorCode: "POLICY_VIOLATION", message: { "zh-CN": "Base URL 非法", "en-US": "Invalid base URL" } };
+        attempts.push({ modelRef, status: "error", errorCode: "POLICY_VIOLATION", reason: "base_url_invalid", provider: cat.provider });
+        continue;
+      }
+      if (!allowedDomains.includes(endpointHost)) {
+        lastPolicyViolation = { errorCode: "POLICY_VIOLATION", message: { "zh-CN": "出站域名不在白名单内", "en-US": "Egress domain is not allowed" } };
+        attempts.push({ modelRef, status: "error", errorCode: "POLICY_VIOLATION", reason: "egress_domain_not_allowed", provider: cat.provider });
+        continue;
+      }
     }
 
     const routingDecision = { provider: cat.provider, model: cat.model, modelRef: cat.modelRef, reason: routeReason, purpose: body.purpose, policy: null, attempts: uniqCandidates.length, attemptIndex: attempts.length + 1 };
@@ -300,8 +327,31 @@ export async function invokeModelChatUpstreamStream(params: {
       let secretTries: number | null = null;
 
       if (cat.provider === "mock") {
-        const last = messages[messages.length - 1];
-        outputText = `echo:${last.content}`;
+        const combined = messages.map((m: any) => String((m as any)?.content ?? "")).join("\n");
+        const lastUser = [...messages].reverse().find((m: any) => m?.role === "user");
+        const lastUserContent = String((lastUser as any)?.content ?? "");
+        const suggestIntent = /(新建|创建|写入|保存|搜索|查找|search|create|write|save)/i.test(lastUserContent);
+        if (/```tool_call/i.test(combined) && suggestIntent) {
+          const refs: string[] = [];
+          const re = /-\s+([a-zA-Z0-9._:-]+@\d+)/g;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(combined)) !== null) refs.push(String(m[1]));
+          const picked = refs.find((r) => r.startsWith("entity.create@")) ?? refs[0] ?? "entity.create@1";
+          const toolName = picked.split("@")[0] ?? "";
+          let inputDraft: any = {};
+          if (toolName === "entity.create") {
+            inputDraft = { schemaName: "core", entityName: "notes", payload: { title: "note" } };
+          }
+          outputText = `我可以用 ${picked} 来处理这个请求。\n\`\`\`tool_call\n${JSON.stringify([{ toolRef: picked, inputDraft }])}\n\`\`\``;
+        } else {
+          const last = messages[messages.length - 1];
+          const lastContent = String((last as any)?.content ?? "");
+          const t = lastContent.trim();
+          outputText =
+            (t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))
+              ? t
+              : `echo:${lastContent}`;
+        }
         params.onDelta(outputText);
         const promptTokens = messages.reduce((a: number, m: any) => a + Math.max(1, Math.ceil(String((m as any).content ?? "").length / 4)), 0);
         const completionTokens = Math.max(1, Math.ceil(outputText.length / 4));
@@ -341,29 +391,69 @@ export async function invokeModelChatUpstreamStream(params: {
           secretMetas.push({ secretId: secret.secret.id, credentialVersion: secret.secret.credentialVersion });
         }
 
-        const usageFromStream: any = {};
-        const result = await openAiChatStreamWithSecretRotation({
-          fetchFn: fetch,
-          baseUrl: bindingBaseUrl,
-          chatCompletionsPath: binding.chatCompletionsPath ?? "/chat/completions",
-          model: cat.model,
-          messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
-          apiKeys,
-          ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
-          ...(typeof body.maxTokens === "number" ? { maxTokens: body.maxTokens } : {}),
-          signal: params.signal,
-          onDelta: (t: string) => {
-            outputText += t;
-            params.onDelta(t);
-          },
-          onUsage: (u: any) => {
-            if (u && typeof u === "object") Object.assign(usageFromStream, u);
-            if (params.onUsage) params.onUsage(u);
-          },
-        });
-        secretTries = result.secretTries;
-        usage = Object.keys(usageFromStream).length ? usageFromStream : { tokens: null };
-        const tries = typeof result.secretTries === "number" && Number.isFinite(result.secretTries) ? Math.max(1, Math.min(secretMetas.length, Math.round(result.secretTries))) : null;
+        const effTimeoutMs =
+          typeof body.timeoutMs === "number" && Number.isFinite(body.timeoutMs)
+            ? Math.max(1, Math.min(120_000, Math.round(body.timeoutMs)))
+            : Math.max(1, Math.min(120_000, Math.round(Number(cat.defaultLimits?.timeoutMs ?? 15_000))));
+        const tries = await (async () => {
+          if (body.stream) {
+            const ctrl = new AbortController();
+            const onAbort = () => ctrl.abort();
+            if (params.signal) {
+              if (params.signal.aborted) ctrl.abort();
+              else params.signal.addEventListener("abort", onAbort, { once: true });
+            }
+            /* Timeout only applies until first delta arrives; clear once streaming starts */
+            let streamStarted = false;
+            const timer = setTimeout(() => { if (!streamStarted) ctrl.abort(); }, effTimeoutMs);
+            const usageFromStream: any = {};
+            let result: any;
+            try {
+              result = await openAiChatStreamWithSecretRotation({
+                fetchFn: fetch,
+                baseUrl: bindingBaseUrl!,
+                chatCompletionsPath: binding.chatCompletionsPath ?? (binding as any).chat_path ?? "/chat/completions",
+                model: cat.model,
+                messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+                apiKeys,
+                ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
+                ...(typeof body.maxTokens === "number" ? { maxTokens: body.maxTokens } : {}),
+                signal: ctrl.signal,
+                onDelta: (t: string) => {
+                  if (!streamStarted) { streamStarted = true; clearTimeout(timer); }
+                  outputText += t;
+                  params.onDelta(t);
+                },
+                onUsage: (u: any) => {
+                  if (u && typeof u === "object") Object.assign(usageFromStream, u);
+                  if (params.onUsage) params.onUsage(u);
+                },
+              });
+            } finally {
+              if (params.signal) params.signal.removeEventListener("abort", onAbort);
+              clearTimeout(timer);
+            }
+            secretTries = result.secretTries;
+            usage = Object.keys(usageFromStream).length ? usageFromStream : { tokens: null };
+            return typeof result.secretTries === "number" && Number.isFinite(result.secretTries) ? Math.max(1, Math.min(secretMetas.length, Math.round(result.secretTries))) : null;
+          }
+          const result = await openAiChatWithSecretRotation({
+            fetchFn: fetch,
+            baseUrl: bindingBaseUrl!,
+            chatCompletionsPath: binding.chatCompletionsPath ?? (binding as any).chat_path ?? "/chat/completions",
+            model: cat.model,
+            messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+            apiKeys,
+            timeoutMs: effTimeoutMs,
+            ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
+            ...(typeof body.maxTokens === "number" ? { maxTokens: body.maxTokens } : {}),
+          });
+          secretTries = result.secretTries;
+          usage = result.usage ?? { tokens: null };
+          outputText = String(result.outputText ?? "");
+          params.onDelta(outputText);
+          return typeof result.secretTries === "number" && Number.isFinite(result.secretTries) ? Math.max(1, Math.min(secretMetas.length, Math.round(result.secretTries))) : null;
+        })();
         if (tries) {
           const used = secretMetas[tries - 1];
           if (used?.secretId) {
@@ -387,7 +477,7 @@ export async function invokeModelChatUpstreamStream(params: {
         const err = Errors.modelProviderUnsupported(String(cat.provider ?? ""));
         lastPolicyViolation = { errorCode: err.errorCode, message: err.messageI18n };
         attempts.push({ modelRef, status: "error", errorCode: err.errorCode, reason: "provider_unsupported", provider: String(cat.provider ?? "") });
-        break;
+        continue;
       }
 
       let structuredOutput: Record<string, unknown> | null = null;

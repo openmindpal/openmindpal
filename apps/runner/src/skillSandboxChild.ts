@@ -1,81 +1,24 @@
+/**
+ * skillSandboxChild.ts — Runner 侧 Skill 沙箱子进程
+ *
+ * 使用统一的沙箱基线模块，确保拦截行为与 Worker 一致。
+ * Runner 侧额外提供：Worker 线程隔离、CPU 时间限制、动态代码执行封禁。
+ * @see packages/shared/src/skillSandbox.ts
+ */
 import Module from "node:module";
 import { Worker } from "node:worker_threads";
 import type { EgressEvent, NetworkPolicy } from "./runtime";
 import { isAllowedEgress, normalizeNetworkPolicy } from "./runtime";
-
-function pickExecute(mod: any) {
-  if (mod && typeof mod.execute === "function") return mod.execute as (req: any) => Promise<any>;
-  if (mod && mod.default && typeof mod.default.execute === "function") return mod.default.execute as (req: any) => Promise<any>;
-  if (mod && typeof mod.default === "function") return mod.default as (req: any) => Promise<any>;
-  return null;
-}
-
-function sandboxMode(): "strict" | "compat" {
-  const raw = String(process.env.SKILL_SANDBOX_MODE ?? "").trim().toLowerCase();
-  if (raw === "strict") return "strict";
-  if (raw === "compat") return "compat";
-  return process.env.NODE_ENV === "production" ? "strict" : "compat";
-}
-
-function forbiddenModules(mode: "strict" | "compat") {
-  const base = new Set<string>([
-    "node:child_process",
-    "child_process",
-    "node:net",
-    "net",
-    "node:tls",
-    "tls",
-    "node:dns",
-    "dns",
-    "node:http",
-    "http",
-    "node:https",
-    "https",
-    "node:dgram",
-    "dgram",
-  ]);
-  if (mode === "compat") return base;
-  const strict = [
-    "node:fs",
-    "fs",
-    "node:fs/promises",
-    "fs/promises",
-    "node:worker_threads",
-    "worker_threads",
-    "node:vm",
-    "vm",
-    "node:inspector",
-    "inspector",
-    "node:async_hooks",
-    "async_hooks",
-  ];
-  for (const x of strict) base.add(x);
-  return base;
-}
-
-/** 封禁动态代码执行能力 — 防止 Skill 通过 eval/Function 绕过沙箱 */
-function lockdownDynamicCodeExecution() {
-  const origEval = globalThis.eval;
-  const origFunction = globalThis.Function;
-  const blocker = (..._args: any[]) => {
-    throw new Error("policy_violation:skill_dynamic_code_execution_blocked");
-  };
-  (globalThis as any).eval = blocker;
-  (globalThis as any).Function = new Proxy(origFunction, {
-    construct(_t, _args) {
-      throw new Error("policy_violation:skill_dynamic_code_execution_blocked");
-    },
-    apply(_t, _thisArg, _args) {
-      throw new Error("policy_violation:skill_dynamic_code_execution_blocked");
-    },
-  });
-  return { origEval, origFunction };
-}
-
-function restoreDynamicCodeExecution(saved: { origEval: typeof eval; origFunction: FunctionConstructor }) {
-  (globalThis as any).eval = saved.origEval;
-  (globalThis as any).Function = saved.origFunction;
-}
+import {
+  resolveSandboxMode,
+  buildForbiddenModulesSet,
+  lockdownDynamicCodeExecution,
+  restoreDynamicCodeExecution,
+  pickExecute,
+  createModuleLoadInterceptor,
+  SANDBOX_FORBIDDEN_MODULES_BASE,
+  SANDBOX_FORBIDDEN_MODULES_STRICT,
+} from "@openslin/shared";
 
 async function main() {
   process.on("message", async (m: any) => {
@@ -83,10 +26,17 @@ async function main() {
     if (m.type !== "execute") return;
     const payload = m.payload ?? {};
 
+    // 将封禁模块列表传递给 Worker 线程
+    const mode = resolveSandboxMode();
+    const forbiddenBase = JSON.stringify([...SANDBOX_FORBIDDEN_MODULES_BASE]);
+    const forbiddenStrict = JSON.stringify([...SANDBOX_FORBIDDEN_MODULES_STRICT]);
+
     const workerCode = `
       const { parentPort } = require("node:worker_threads");
       const Module = require("node:module");
-      const { isAllowedEgress, normalizeNetworkPolicy } = require(${JSON.stringify(require.resolve("./runtime"))});
+      // 使用 @openslin/shared 的编译产物，避免 Worker 中 require TypeScript 文件问题
+      const sharedPath = ${JSON.stringify(require.resolve("@openslin/shared"))};
+      const { isAllowedEgress, normalizeNetworkPolicy } = require(sharedPath);
 
       function pickExecute(mod) {
         if (mod && typeof mod.execute === "function") return mod.execute;
@@ -102,12 +52,11 @@ async function main() {
         return process.env.NODE_ENV === "production" ? "strict" : "compat";
       }
 
+      // 使用传递进来的封禁模块列表，保持与 shared 一致
       function forbiddenModules(mode) {
-        const base = new Set([
-          "node:child_process","child_process","node:net","net","node:tls","tls","node:dns","dns","node:http","http","node:https","https","node:dgram","dgram"
-        ]);
+        const base = new Set(${forbiddenBase});
         if (mode === "compat") return base;
-        const strict = ["node:fs","fs","node:fs/promises","fs/promises","node:worker_threads","worker_threads","node:vm","vm","node:inspector","inspector","node:async_hooks","async_hooks"];
+        const strict = ${forbiddenStrict};
         for (const x of strict) base.add(x);
         return base;
       }

@@ -206,7 +206,7 @@ export async function autoDiscoverAndRegisterTools(pool: Pool): Promise<{ regist
     for (const tool of allTools) {
       try {
         // Upsert tool_definitions
-        await pool.query(
+        const res = await pool.query(
           `
             INSERT INTO tool_definitions (tenant_id, name, display_name, description, scope, resource_type, action, idempotency_required, risk_level, approval_required, source_layer)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -217,6 +217,8 @@ export async function autoDiscoverAndRegisterTools(pool: Pool): Promise<{ regist
                 resource_type = COALESCE(tool_definitions.resource_type, EXCLUDED.resource_type),
                 action = COALESCE(tool_definitions.action, EXCLUDED.action),
                 idempotency_required = COALESCE(tool_definitions.idempotency_required, EXCLUDED.idempotency_required),
+                risk_level = EXCLUDED.risk_level,
+                approval_required = EXCLUDED.approval_required,
                 source_layer = COALESCE(EXCLUDED.source_layer, tool_definitions.source_layer),
                 updated_at = now()
           `,
@@ -283,7 +285,8 @@ export async function autoDiscoverAndRegisterTools(pool: Pool): Promise<{ regist
         // Non-kernel tools: no auto-enable — must be enabled via governance
 
         registered++;
-      } catch {
+      } catch (err: any) {
+        console.error(`[tool-discovery] failed to register tool "${tool.name}": ${err?.message ?? err}`);
         skipped++;
       }
     }

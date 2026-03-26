@@ -229,19 +229,5 @@ export async function publishToolVersion(params: {
     ],
   );
 
-  // Auto-activate the newly published version and enable rollout
-  await params.pool.query(
-    `INSERT INTO tool_active_versions (tenant_id, name, active_tool_ref)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (tenant_id, name) DO UPDATE SET active_tool_ref = EXCLUDED.active_tool_ref`,
-    [params.tenantId, params.name, toolRef],
-  );
-  await params.pool.query(
-    `INSERT INTO tool_rollouts (tenant_id, scope_type, scope_id, tool_ref, enabled)
-     VALUES ($1, 'tenant', $1, $2, true)
-     ON CONFLICT (tenant_id, scope_type, scope_id, tool_ref) DO UPDATE SET enabled = true`,
-    [params.tenantId, toolRef],
-  );
-
   return toVer(res.rows[0]);
 }

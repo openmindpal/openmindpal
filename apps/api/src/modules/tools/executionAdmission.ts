@@ -37,6 +37,8 @@ export async function admitToolExecution(params: {
   requestedCapabilityEnvelope?: any;
   requireRequestedEnvelope: boolean;
 }) : Promise<ExecutionAdmissionResult> {
+  const isPlainObject = (v: any) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
+
   const effPol = await getEffectiveToolNetworkPolicy({ pool: params.pool, tenantId: params.tenantId, spaceId: params.spaceId ?? undefined, toolRef: params.toolRef });
   const effAllowedDomains = effPol?.allowedDomains ?? [];
   const effRules = (effPol as any)?.rules ?? [];
@@ -84,6 +86,12 @@ export async function admitToolExecution(params: {
 
   const parsed = validateCapabilityEnvelopeV1(params.requestedCapabilityEnvelope);
   if (!parsed.ok) return { ok: false, reason: "invalid" };
+
+  const rawLimits = (params.requestedCapabilityEnvelope as any)?.resourceDomain?.limits;
+  if (rawLimits === undefined || rawLimits === null || (isPlainObject(rawLimits) && Object.keys(rawLimits).length === 0)) {
+    parsed.envelope.resourceDomain.limits = effectiveEnvelope.resourceDomain.limits;
+  }
+
   const subset = checkCapabilityEnvelopeNotExceedV1({ envelope: parsed.envelope, effective: effectiveEnvelope });
   if (!subset.ok) return { ok: false, reason: "not_subset", details: { reason: subset.reason } };
 

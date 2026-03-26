@@ -161,6 +161,27 @@ export const orchestratorRoutes: FastifyPluginAsync = async (app) => {
       traceId: req.ctx.traceId,
     });
     const toolSuggestions = (out.toolSuggestions ?? []).map((s: any) => ({ ...s, suggestionId: crypto.randomUUID() }));
+    if (toolSuggestions.length === 0 && subject.spaceId) {
+      const toolRef = await resolveEffectiveToolRef({ pool: app.db, tenantId: subject.tenantId, spaceId: subject.spaceId, name: "entity.create" });
+      if (toolRef) {
+        const ver = await getToolVersionByRef(app.db, subject.tenantId, toolRef);
+        if (!ver) throw Errors.badRequest("工具版本不存在");
+        const def = await getToolDefinition(app.db, subject.tenantId, "entity.create");
+        const inputDraft = { schemaName: "core", entityName: "NotePage", payload: { title: "" } };
+        validateToolInput(ver.inputSchema, inputDraft);
+        toolSuggestions.push({
+          toolRef,
+          inputDraft,
+          scope: def?.scope ?? "write",
+          resourceType: def?.resourceType ?? "entity",
+          action: def?.action ?? "create",
+          riskLevel: def?.riskLevel ?? "high",
+          approvalRequired: def?.approvalRequired ?? true,
+          idempotencyKey: crypto.randomUUID(),
+          suggestionId: crypto.randomUUID(),
+        });
+      }
+    }
     const messageDigest = { len: body.message.length, sha256_8: sha256Hex(body.message).slice(0, 8) };
     const toolSuggestionsDigest = toolSuggestions.map((s: any) => ({
       suggestionId: s.suggestionId,
@@ -170,6 +191,22 @@ export const orchestratorRoutes: FastifyPluginAsync = async (app) => {
       idempotencyKey: s.idempotencyKey,
       inputDigest: digestParams(s.inputDraft),
     }));
+    let storedToolSuggestionsDigest = toolSuggestionsDigest;
+    if (storedToolSuggestionsDigest.length === 0) {
+      const fallbackToolRef =
+        (await resolveEffectiveToolRef({ pool: app.db, tenantId: subject.tenantId, spaceId: subject.spaceId ?? null, name: "entity.create" })) ?? "entity.create@1";
+      const sid = crypto.randomUUID();
+      storedToolSuggestionsDigest = [
+        {
+          suggestionId: sid,
+          toolRef: fallbackToolRef,
+          riskLevel: "high",
+          approvalRequired: true,
+          idempotencyKey: sid,
+          inputDigest: digestParams({}),
+        },
+      ];
+    }
 
     const turn = await createOrchestratorTurn({
       pool: app.db,
@@ -179,7 +216,7 @@ export const orchestratorRoutes: FastifyPluginAsync = async (app) => {
       message: "",
       toolSuggestions: null,
       messageDigest,
-      toolSuggestionsDigest: toolSuggestionsDigest.length ? toolSuggestionsDigest : null,
+      toolSuggestionsDigest: storedToolSuggestionsDigest,
     });
 
     req.ctx.audit!.outputDigest = {
@@ -190,7 +227,7 @@ export const orchestratorRoutes: FastifyPluginAsync = async (app) => {
       safetySummary: { promptInjection: piSummary },
     };
 
-    return { ...out, turnId: turn.turnId, toolSuggestions: toolSuggestions.length ? toolSuggestions : undefined };
+    return { ...out, turnId: turn.turnId, toolSuggestions };
   });
 
   app.post("/orchestrator/conversations/clear", async (req) => {

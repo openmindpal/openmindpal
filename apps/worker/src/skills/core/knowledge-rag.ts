@@ -1,7 +1,7 @@
-import type { WorkerSkillContribution } from "../lib/workerSkillContract";
-import { processKnowledgeIndexJob } from "../knowledge/processor";
-import { processKnowledgeEmbeddingJob } from "../knowledge/embedding";
-import { processKnowledgeIngestJob } from "../knowledge/ingest";
+import type { WorkerSkillContribution } from "../../lib/workerSkillContract";
+import { processKnowledgeIndexJob } from "../../knowledge/processor";
+import { processKnowledgeEmbeddingJob } from "../../knowledge/embedding";
+import { processKnowledgeIngestJob } from "../../knowledge/ingest";
 
 export const knowledgeRagWorker: WorkerSkillContribution = {
   skillName: "knowledge.rag",

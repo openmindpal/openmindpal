@@ -209,7 +209,7 @@ export const orchestratorTurnStreamRoutes: FastifyPluginAsync = async (app) => {
         modelOut = await invokeModelChatUpstreamStream({
           app,
           subject,
-          body: { purpose: "orchestrator.turn", scene: "orchestrator.turn", messages: modelMessages },
+          body: { purpose: "orchestrator.turn", scene: "orchestrator.turn", messages: modelMessages, stream: true },
           traceId: req.ctx.traceId,
           requestId: req.ctx.requestId,
           locale,

@@ -416,6 +416,9 @@ export default function HomeChat(props: { locale: string }) {
                 }
                 break;
               case "keepalive":
+              case "ping":
+                /* Reset stale timeout on heartbeat */
+                lastChunkAt = Date.now();
                 break;
               case "nl2uiResult":
                 setNl2uiLoading(false);
@@ -475,11 +478,14 @@ export default function HomeChat(props: { locale: string }) {
         }
       }
 
-      /* If streaming left an empty reply, remove the placeholder */
+      /* If streaming left an empty reply, show error instead of silently removing */
       if (!accText) {
         setFlow((prev) => prev.filter((it) => it.id !== replyId));
+        lastRetryMsgRef.current = message;
+        setFlow((prev) => [...prev, { kind: "error", id: nextId("e"), role: "assistant", errorCode: "EMPTY_REPLY", message: t(locale, "chat.error.EMPTY_REPLY"), traceId: "", retryMessage: message }]);
+      } else {
+        lastRetryMsgRef.current = null;
       }
-      lastRetryMsgRef.current = null;
     } catch (err) {
       /* Ignore AbortError when user intentionally cancels */
       if (err instanceof DOMException && err.name === "AbortError" && !String((err as any)?.code ?? "").includes("STREAM_STALE_TIMEOUT")) {

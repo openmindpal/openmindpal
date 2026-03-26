@@ -216,7 +216,7 @@ export async function getObservabilitySummary(params: { pool: Pool; tenantId: st
         SUM(CASE WHEN decision = 'deny' THEN 1 ELSE 0 END)::int AS denied
       FROM approval_decisions
       WHERE tenant_id = $1
-        AND created_at >= now() - $2::interval
+        AND decided_at >= now() - $2::interval
     `,
     [params.tenantId, interval],
   );

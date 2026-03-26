@@ -1,5 +1,5 @@
-import type { WorkerSkillContribution } from "../lib/workerSkillContract";
-import { tickSubscriptions } from "../subscriptions/ticker";
+import type { WorkerSkillContribution } from "../../lib/workerSkillContract";
+import { tickSubscriptions } from "../../subscriptions/ticker";
 
 function resolveMasterKey() {
   const v = String(process.env.API_MASTER_KEY ?? "").trim();

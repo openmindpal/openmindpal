@@ -1,28 +1,38 @@
 import type { Pool } from "pg";
+import {
+  resolveSkillRuntimeBackend,
+  resolveSkillRuntimeContainerImage,
+  resolveSkillRuntimeContainerUser,
+  resolveSkillRuntimeRemoteEndpoint,
+  resolveSkillRuntimeContainerFallback,
+  type SkillRuntimeBackend,
+} from "@openslin/shared";
 import { decryptSecretPayload } from "../../secrets/envelope";
 
-export function getSkillRuntimeBackendPref(): "process" | "container" | "remote" | "auto" {
-  const raw = String(process.env.SKILL_RUNTIME_BACKEND ?? "").trim().toLowerCase();
-  if (raw === "container") return "container";
-  if (raw === "remote") return "remote";
-  if (raw === "auto") return "auto";
-  if (raw === "process") return "process";
-  return process.env.NODE_ENV === "production" ? "auto" : "process";
+/**
+ * 获取 Skill 运行时后端偏好
+ * 统一从 @openslin/shared 解析
+ */
+export function getSkillRuntimeBackendPref(): SkillRuntimeBackend {
+  return resolveSkillRuntimeBackend().value;
 }
 
-export function getSkillRuntimeContainerImage() {
-  const raw = String(process.env.SKILL_RUNTIME_CONTAINER_IMAGE ?? "").trim();
-  return raw || "node:20-alpine";
+/**
+ * 获取容器运行时镜像
+ */
+export function getSkillRuntimeContainerImage(): string {
+  return resolveSkillRuntimeContainerImage().value;
 }
 
-export function getSkillRuntimeContainerUser() {
-  const raw = String(process.env.SKILL_RUNTIME_CONTAINER_USER ?? "").trim();
-  return raw || "1000:1000";
+/**
+ * 获取容器运行时用户
+ */
+export function getSkillRuntimeContainerUser(): string {
+  return resolveSkillRuntimeContainerUser().value;
 }
 
-function getSkillRuntimeRemoteEndpointOverride() {
-  const raw = String(process.env.SKILL_RUNTIME_REMOTE_ENDPOINT ?? "").trim();
-  return raw || null;
+function getSkillRuntimeRemoteEndpointOverride(): string | null {
+  return resolveSkillRuntimeRemoteEndpoint().value;
 }
 
 export async function loadRemoteRunnerConfig(params: { pool: Pool; tenantId: string; masterKey: string }) {
@@ -69,8 +79,9 @@ export async function loadRemoteRunnerConfig(params: { pool: Pool; tenantId: str
   return { endpoint, bearerToken: token };
 }
 
-export function allowSkillRuntimeContainerFallback() {
-  const raw = String(process.env.SKILL_RUNTIME_CONTAINER_FALLBACK ?? "").trim().toLowerCase();
-  if (raw === "0" || raw === "false" || raw === "no") return false;
-  return process.env.NODE_ENV !== "production";
+/**
+ * 是否允许容器隔离回退到 process 模式
+ */
+export function allowSkillRuntimeContainerFallback(): boolean {
+  return resolveSkillRuntimeContainerFallback().value;
 }

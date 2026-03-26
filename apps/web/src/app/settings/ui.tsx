@@ -17,8 +17,10 @@ function parseErr(json: unknown, locale: string) {
 }
 
 export default function SettingsClient(props: { locale: string }) {
-  const [authToken, setAuthToken] = useState<string>(() => getClientAuthToken());
-  const [authTokenStatus, setAuthTokenStatus] = useState<"unset" | "set">(() => (getClientAuthToken() ? "set" : "unset"));
+  // SSR-safe: use static initial values, then hydrate from localStorage in useEffect
+  const [authToken, setAuthToken] = useState<string>("");
+  const [authTokenStatus, setAuthTokenStatus] = useState<"unset" | "set">("unset");
+  const [hydrated, setHydrated] = useState(false);
 
   /* NL2UI Style Preferences */
   const [nl2uiFontSize, setNl2uiFontSize] = useState<string>("medium");
@@ -136,9 +138,13 @@ export default function SettingsClient(props: { locale: string }) {
     }
   }
 
-  /* auto-load NL2UI prefs on mount when token is present */
+  /* SSR hydration: read localStorage after mount */
   useEffect(() => {
-    if (getClientAuthToken()) loadNl2uiPrefs();
+    const token = getClientAuthToken();
+    setAuthToken(token);
+    setAuthTokenStatus(token ? "set" : "unset");
+    setHydrated(true);
+    if (token) loadNl2uiPrefs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

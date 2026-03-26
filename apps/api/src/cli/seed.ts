@@ -217,6 +217,20 @@ async function main() {
     [adminSubjectId, adminRoleId, tenantId],
   );
 
+  // 为默认的 Web 用户添加管理员权限（开发环境）
+  const devWebSubjectId = process.env.SEED_WEB_SUBJECT_ID ?? "anonymous";
+  if (devWebSubjectId !== adminSubjectId) {
+    await pool.query(
+      "INSERT INTO subjects (id, tenant_id) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING",
+      [devWebSubjectId, tenantId],
+    );
+    await pool.query(
+      "INSERT INTO role_bindings (subject_id, role_id, scope_type, scope_id) VALUES ($1, $2, 'tenant', $3) ON CONFLICT DO NOTHING",
+      [devWebSubjectId, adminRoleId, tenantId],
+    );
+    console.log(`[seed] granted admin role to dev web user: ${devWebSubjectId}`);
+  }
+
   const mockModelRef = process.env.SEED_DEFAULT_MODEL_REF ?? "mock:echo-1";
   const egressPolicy = { allowedDomains: ["mock.local"] };
   const instRes = await pool.query(

@@ -23,6 +23,7 @@ import { discoverEnabledTools, type EnabledTool } from "../skills/orchestrator/m
 import { getToolDefinition, getToolVersionByRef, type ToolDefinition } from "../modules/tools/toolRepo";
 import { resolveEffectiveToolRef } from "../modules/tools/resolve";
 import { isToolEnabled } from "../modules/governance/toolGovernanceRepo";
+import { routeByIntent, type RouteResult } from "../modules/skills/skillRouter";
 
 /* Re-export for convenience so callers only need one import. */
 export { discoverEnabledTools, type EnabledTool };
@@ -63,6 +64,8 @@ export interface PlanningResult {
   toolCatalog: string;
   /** All enabled tools discovered. */
   enabledTools: EnabledTool[];
+  /** Semantic routing result (if applicable). */
+  semanticRoute?: RouteResult;
 }
 
 /* ================================================================== */
@@ -278,8 +281,26 @@ export async function runPlanningPipeline(params: RunPlanningParams): Promise<Pl
   // Phase 1: discover enabled tools
   const toolDiscovery = await discoverEnabledTools({ pool, tenantId: subject.tenantId, spaceId, locale });
 
-  // Phase 2: build planner prompt
-  const systemPrompt = buildPlannerPrompt({ toolCatalog: toolDiscovery.catalog, plannerRole });
+  // Phase 1.5: Semantic pre-routing (optional enhancement)
+  let semanticRoute: RouteResult | undefined;
+  try {
+    semanticRoute = await routeByIntent({ pool, tenantId: subject.tenantId, intent: userMessage });
+  } catch {
+    // Semantic routing is optional, continue without it
+  }
+
+  // If semantic routing found a high-confidence match, prioritize it in the prompt
+  let enhancedCatalog = toolDiscovery.catalog;
+  if (semanticRoute?.resolved && semanticRoute.bestMatch) {
+    const priorityNote = `\n\n[Priority Match] Based on semantic analysis, "${semanticRoute.bestMatch.skillName}" is highly recommended (${Math.round(semanticRoute.confidence * 100)}% match).`;
+    enhancedCatalog = toolDiscovery.catalog + priorityNote;
+  } else if (semanticRoute?.ambiguous && semanticRoute.candidates.length > 1) {
+    const ambiguityNote = `\n\n[Ambiguity] Multiple similar tools detected: ${semanticRoute.candidates.map(c => c.skillName).join(", ")}. Please choose the most appropriate one.`;
+    enhancedCatalog = toolDiscovery.catalog + ambiguityNote;
+  }
+
+  // Phase 2: build planner prompt (use enhanced catalog with semantic hints)
+  const systemPrompt = buildPlannerPrompt({ toolCatalog: enhancedCatalog, plannerRole });
 
   // Phase 3: invoke LLM
   const llmResult = await invokePlannerLlm({
@@ -322,6 +343,7 @@ export async function runPlanningPipeline(params: RunPlanningParams): Promise<Pl
       filteredSuggestionCount: parseResult.filteredSuggestionCount,
       toolCatalog: toolDiscovery.catalog,
       enabledTools: toolDiscovery.tools,
+      semanticRoute,
     };
   }
 
@@ -334,5 +356,6 @@ export async function runPlanningPipeline(params: RunPlanningParams): Promise<Pl
     filteredSuggestionCount: parseResult.filteredSuggestionCount,
     toolCatalog: toolDiscovery.catalog,
     enabledTools: toolDiscovery.tools,
+    semanticRoute,
   };
 }

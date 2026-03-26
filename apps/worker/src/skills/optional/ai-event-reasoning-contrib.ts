@@ -5,7 +5,7 @@
  * - Ticker: scans unprocessed events and enqueues reasoning jobs (every 10s)
  * - Job handler: processes "event.reasoning" BullMQ jobs
  */
-import type { WorkerSkillContribution } from "../lib/workerSkillContract";
+import type { WorkerSkillContribution } from "../../lib/workerSkillContract";
 import { tickEventReasoning, processEventReasoningJob } from "./ai-event-reasoning";
 
 export const aiEventReasoningWorker: WorkerSkillContribution = {

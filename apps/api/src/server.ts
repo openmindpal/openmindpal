@@ -39,6 +39,7 @@ import { idempotencyKeyPlugin } from "./plugins/idempotencyKey";
 import { dlpPlugin } from "./plugins/dlp";
 import { auditPlugin } from "./plugins/audit";
 import { metricsPlugin } from "./plugins/metrics";
+import { autoDiscoverAndRegisterTools } from "./modules/tools/toolAutoDiscovery";
 
 export function buildServer(cfg: ApiConfig, deps: { db: Pool; queue: Queue }) {
   const app = Fastify({ logger: true });
@@ -48,6 +49,9 @@ export function buildServer(cfg: ApiConfig, deps: { db: Pool; queue: Queue }) {
   app.decorate("cfg", cfg);
   app.decorate("metrics", createMetricsRegistry());
   app.register(websocket);
+
+  // NOTE: autoDiscoverAndRegisterTools is now called after initBuiltinSkills() to ensure
+  // the built-in skill registry is sealed before tool discovery runs.
   const auditOutboxEnabled = process.env.AUDIT_OUTBOX_DISPATCHER === "0" ? false : true;
   const auditOutboxIntervalMs = Math.max(250, Number(process.env.AUDIT_OUTBOX_INTERVAL_MS ?? "1000") || 1000);
   const auditOutboxBatch = Math.max(1, Math.min(200, Number(process.env.AUDIT_OUTBOX_BATCH ?? "50") || 50));
@@ -271,6 +275,14 @@ export function buildServer(cfg: ApiConfig, deps: { db: Pool; queue: Queue }) {
       registeredSkills.push(name);
     }
     app.log.info({ registeredSkills: registeredSkills.length, skills: registeredSkills }, "[startup] Built-in skills registered");
+
+    // Auto-discover and register tools (now that builtin skills are registered and sealed)
+    try {
+      const discovery = await autoDiscoverAndRegisterTools(app.db);
+      app.log.info({ registered: discovery.registered, skipped: discovery.skipped }, "[startup] Tool discovery completed");
+    } catch (e: any) {
+      app.log.error({ err: e }, "[startup] Tool discovery failed (non-fatal)");
+    }
   });
 
   return app;

@@ -144,7 +144,15 @@ export const closedLoopContinueRoutes: FastifyPluginAsync = async (app) => {
     if (resolved.toolName === "memory.read") await requirePermission({ req, resourceType: "memory", action: "read" });
     if (resolved.toolName === "memory.write") await requirePermission({ req, resourceType: "memory", action: "write" });
 
-    validateToolInput(resolved.version.inputSchema, stepPlan.inputDraft ?? {});
+    let inputDraft = stepPlan.inputDraft ?? {};
+    if (resolved.toolName === "memory.write" && inputDraft && typeof inputDraft === "object") {
+      const d: any = { ...(inputDraft as any) };
+      if (d.contentText === undefined && d.content !== undefined) d.contentText = String(d.content);
+      if (d.type === undefined) d.type = "note";
+      if (d.content !== undefined) delete d.content;
+      inputDraft = d;
+    }
+    validateToolInput(resolved.version.inputSchema, inputDraft);
 
     const opDecision = await requirePermission({ req, resourceType: resolved.resourceType, action: resolved.action });
     const idempotencyKey = resolved.scope === "write" && resolved.idempotencyRequired ? `idem-orch-${runId}-${cursor + 1}` : null;
@@ -155,7 +163,7 @@ export const closedLoopContinueRoutes: FastifyPluginAsync = async (app) => {
     });
     const effNetDigest = admitted.networkPolicyDigest;
 
-    const safetyResultCont = await safetyPreCheck({ app, subject, authorization: (req.headers.authorization as string | undefined) ?? null, traceId: req.ctx.traceId, locale: req.ctx.locale ?? "zh-CN", toolRef: resolved.toolRef, scope: resolved.scope, riskLevel: resolved.definition.riskLevel ?? "low", input: stepPlan.inputDraft ?? {} });
+    const safetyResultCont = await safetyPreCheck({ app, subject, authorization: (req.headers.authorization as string | undefined) ?? null, traceId: req.ctx.traceId, locale: req.ctx.locale ?? "zh-CN", toolRef: resolved.toolRef, scope: resolved.scope, riskLevel: resolved.definition.riskLevel ?? "low", input: inputDraft });
     if (!safetyResultCont.safe) {
       const latencyMs = Date.now() - t0;
       return {
@@ -165,7 +173,7 @@ export const closedLoopContinueRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const stepInputPayload = buildStepInputPayload({
-      kind: "agent.run.step", resolved, admitted, input: stepPlan.inputDraft ?? {},
+      kind: "agent.run.step", resolved, admitted, input: inputDraft,
       idempotencyKey, tenantId: subject.tenantId, spaceId: subject.spaceId, subjectId: subject.subjectId, traceId: req.ctx.traceId,
       extra: { planStepId: String(stepPlan.stepId ?? crypto.randomUUID()), actorRole: "executor", dependsOn: [] },
     });
@@ -184,14 +192,18 @@ export const closedLoopContinueRoutes: FastifyPluginAsync = async (app) => {
       const toolApprovalRequired = Boolean(resolved.definition.approvalRequired) || resolved.definition.riskLevel === "high";
       execution = { status: "dry_run", toolRef: resolved.toolRef, blocked: toolApprovalRequired || scopeBlocked, reason: toolApprovalRequired ? "approval_required" : scopeBlocked ? "writes_not_allowed" : "ok" };
     } else {
+      const resolvedForSubmit =
+        resolved.scope === "write"
+          ? { ...resolved, definition: { ...resolved.definition, approvalRequired: true } }
+          : resolved;
       const submitResult = await submitStepToExistingRun({
-        pool: app.db, queue: app.queue, tenantId: subject.tenantId, resolved, opDecision, stepInput: stepInputPayload,
+        pool: app.db, queue: app.queue, tenantId: subject.tenantId, resolved: resolvedForSubmit, opDecision, stepInput: stepInputPayload,
         runId, jobId, masterKey: app.cfg.secrets.masterKey,
       });
       if (submitResult.outcome === "needs_approval") {
-        execution = { status: "blocked", reason: "approval_required", toolRef: resolved.toolRef, runId, stepId: submitResult.stepId, approvalId: submitResult.approvalId, idempotencyKey, runtimePolicy: { networkPolicyDigest: effNetDigest } };
+        execution = { status: "blocked", reason: "approval_required", toolRef: resolvedForSubmit.toolRef, runId, stepId: submitResult.stepId, approvalId: submitResult.approvalId, idempotencyKey, runtimePolicy: { networkPolicyDigest: effNetDigest } };
       } else {
-        execution = { status: "queued", toolRef: resolved.toolRef, runId, stepId: submitResult.stepId, idempotencyKey, runtimePolicy: { networkPolicyDigest: effNetDigest } };
+        execution = { status: "queued", toolRef: resolvedForSubmit.toolRef, runId, stepId: submitResult.stepId, idempotencyKey, runtimePolicy: { networkPolicyDigest: effNetDigest } };
       }
     }
 
@@ -219,7 +231,7 @@ export const closedLoopContinueRoutes: FastifyPluginAsync = async (app) => {
               planDigest,
             }),
           };
-    return { runtime: "closed-loop" as const, runId, phase: closedLoop.phase, cursor: nextCursor, nextAction: closedLoop.executionSummary.nextAction, closedLoop, execution, latencyMs, planDigest, evalCaseResult };
+    return { runtime: "closed-loop" as const, runId, phase: closedLoop.phase, cursor: nextCursor, nextAction: closedLoop.executionSummary.nextAction, stepId: execution?.stepId, approvalId: execution?.approvalId, closedLoop, execution, latencyMs, planDigest, evalCaseResult };
   });
 
   app.post("/orchestrator/closed-loop/retry", async (req, reply) => {

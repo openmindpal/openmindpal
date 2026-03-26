@@ -22,56 +22,53 @@ import type { FastifyPluginAsync } from "fastify";
 
 // ── Kernel Layer (Phase 0) ──────────────────────────────────────────
 // (entityKernel is defined inline below)
+// Layer structure: ./kernel/
 
-// ── Builtin Layer ───────────────────────────────────────────────────
-// Builtin: Interaction & UI
-import nl2uiGenerator from "./nl2ui-generator";
-import uiPageConfig from "./ui-page-config";
-import workbenchManager from "./workbench-manager";
+// ── Builtin Core Layer ─────────────────────────────────────────────
+// Layer structure: ./builtin/core/
+import {
+  orchestrator,
+  modelGateway,
+  knowledgeRag,
+  memoryManager,
+  safetyPolicy,
+  connectorManager,
+  taskManager,
+  channelGateway,
+  triggerEngine,
+} from "./builtin/core";
 
-// Builtin: Model Gateway──
-import modelGateway from "./model-gateway";
-
-// Builtin: Orchestrator & Channel
-import orchestrator from "./orchestrator";
-import channelGateway from "./channel-gateway";
-
-// Builtin: Knowledge / Memory / Safety
-import knowledgeRag from "./knowledge-rag";
-import memoryManager from "./memory-manager";
-import safetyPolicy from "./safety-policy";
-
-// Builtin: Connector / OAuth / SSO
-import connectorManager from "./connector-manager";
-import oauthProvider from "./oauth-provider";
-import ssoProvider from "./sso-provider";
-
-// Builtin: Notification / Subscription / Trigger
-import notificationOutbox from "./notification-outbox";
-import subscriptionRunner from "./subscription-runner";
-import triggerEngine from "./trigger-engine";
-
-// Builtin: Device Runtime────
-import deviceRuntime from "./device-runtime";
-
-// Builtin: Collaboration / Sync / Agent / Task / Yjs
-import collabRuntime from "./collab-runtime";
-import syncEngine from "./sync-engine";
-import agentRuntime from "./agent-runtime";
-import taskManager from "./task-manager";
-import yjsCollab from "./yjs-collab";
+// ── Builtin Optional Layer ─────────────────────────────────────────
+// Layer structure: ./builtin/optional/
+import {
+  nl2uiGenerator,
+  uiPageConfig,
+  workbenchManager,
+  oauthProvider,
+  ssoProvider,
+  notificationOutbox,
+  subscriptionRunner,
+  deviceRuntime,
+  collabRuntime,
+  syncEngine,
+  agentRuntime,
+  yjsCollab,
+  skillManager,
+  rbacManager,
+} from "./builtin/optional";
 
 // ── Extension Layer ────────────────────────────────────────────────
-import mediaPipeline from "./media-pipeline";
-import backupManager from "./backup-manager";
-import replayViewer from "./replay-viewer";
-import artifactManager from "./artifact-manager";
-import analyticsEngine from "./analytics-engine";
-import identityLink from "./identity-link";
-import userViewPrefs from "./user-view-prefs";
-
-// Extension: AI Event Reasoning
-import aiEventReasoning from "./ai-event-reasoning";
+// Layer structure: ./extension/
+import {
+  mediaPipeline,
+  backupManager,
+  replayViewer,
+  artifactManager,
+  analyticsEngine,
+  identityLink,
+  userViewPrefs,
+  aiEventReasoning,
+} from "./extension";
 
 /* ------------------------------------------------------------------ */
 /*  Skill tier classification                                          */
@@ -104,6 +101,8 @@ export const OPTIONAL_BUILTIN_SKILL_KEYS = [
   "sync.engine",
   "agent.runtime",
   "yjs.collab",
+  "skill.manager",
+  "rbac.manager",
 ] as const;
 
 /** 扩展层 — 默认全部启用，可通过 ENABLED_EXTENSIONS 控制 */
@@ -169,6 +168,8 @@ export function initBuiltinSkills(): void {
     ["sync.engine", syncEngine],
     ["agent.runtime", agentRuntime],
     ["yjs.collab", yjsCollab],
+    ["skill.manager", skillManager],
+    ["rbac.manager", rbacManager],
   ];
   for (const [key, plugin] of optionalPlugins) {
     if (!disabledBuiltins.has(key)) {

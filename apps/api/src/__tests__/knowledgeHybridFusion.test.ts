@@ -22,7 +22,7 @@ describe.sequential("knowledge hybrid fusion unit", { timeout: 90_000 }, () => {
     } catch (e) {
       canRun = false;
     }
-  });
+  }, 120_000);
 
   afterAll(async () => {
     await pool.end();

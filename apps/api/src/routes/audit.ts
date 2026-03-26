@@ -3,6 +3,7 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { Errors } from "../lib/errors";
 import { normalizeAuditErrorCategory } from "../modules/audit/auditRepo";
+import { dispatchAuditOutboxBatch } from "../modules/audit/outboxRepo";
 import { requirePermission } from "../modules/auth/guard";
 import { setAuditContext } from "../modules/audit/context";
 import { createAuditExport, getAuditExport, listAuditExports } from "../modules/audit/exportRepo";
@@ -175,7 +176,7 @@ async function updateSiemDestinationGovernanceExtras(app: any, params: {
 }
 
 export const auditRoutes: FastifyPluginAsync = async (app) => {
-  app.get("/audit", async (req) => {
+  const listAudit = async (req: any) => {
     setAuditContext(req, { resourceType: "audit", action: "read" });
     req.ctx.audit!.policyDecision = await requirePermission({ req, resourceType: "audit", action: "read" });
 
@@ -187,6 +188,13 @@ export const auditRoutes: FastifyPluginAsync = async (app) => {
         limit: z.coerce.number().int().positive().max(200).optional(),
       })
       .parse(req.query);
+
+    if (q.traceId) {
+      try {
+        await dispatchAuditOutboxBatch({ pool: app.db, limit: 50 });
+      } catch {
+      }
+    }
 
     const limit = q.limit ?? 50;
     const where: string[] = [];
@@ -215,9 +223,12 @@ export const auditRoutes: FastifyPluginAsync = async (app) => {
     `;
     const res = await app.db.query(sql, args);
     return { events: res.rows };
-  });
+  };
 
-  app.get("/audit/verify", async (req) => {
+  app.get("/audit", listAudit);
+  app.get("/governance/audit", listAudit);
+
+  const verifyHashchain = async (req: any) => {
     setAuditContext(req, { resourceType: "audit", action: "verify" });
     req.ctx.audit!.policyDecision = await requirePermission({ req, resourceType: "audit", action: "verify" });
 
@@ -335,6 +346,12 @@ export const auditRoutes: FastifyPluginAsync = async (app) => {
     const lastEventId = events.length ? String(events[events.length - 1].event_id) : null;
     req.ctx.audit!.outputDigest = { ok, checkedCount, failuresCount: failures.length, lastEventHash: prevHash };
     return { ok, checkedCount, firstEventId, lastEventId, lastEventHash: prevHash, failures };
+  };
+
+  app.get("/audit/verify", verifyHashchain);
+  app.get("/governance/audit/hashchain/verify", async (req) => {
+    const out: any = await verifyHashchain(req);
+    return { valid: Boolean(out.ok), ...out };
   });
 
   app.get("/audit/retention", async (req) => {

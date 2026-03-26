@@ -1489,7 +1489,31 @@ export async function preflightChangeSet(params: { pool: Pool; tenantId: string;
     }
 
     if (item.kind === "model_limits.set") {
-      /* rate limiting removed — skip */
+      const modelChatRpm = Number(item.payload?.modelChatRpm);
+      if (!Number.isFinite(modelChatRpm) || modelChatRpm <= 0) throw new Error("invalid_model_chat_rpm");
+      const baseScopeType = cs.scopeType;
+      const baseScopeId = cs.scopeId;
+      if (mode === "canary") {
+        for (const spaceId of targets) {
+          const prevRes = await client(params.pool).query(
+            `SELECT model_chat_rpm FROM quota_limits WHERE tenant_id = $1 AND scope_type = 'space' AND scope_id = $2 LIMIT 1`,
+            [params.tenantId, spaceId],
+          );
+          const prev = prevRes.rowCount ? { modelChatRpm: Number(prevRes.rows[0].model_chat_rpm) } : null;
+          plan.push({ kind: item.kind, scopeType: "space", scopeId: spaceId, modelChatRpm });
+          currentStateDigest.push({ kind: "model.quota_limit", scopeType: "space", scopeId: spaceId, exists: Boolean(prev), prev });
+          rollbackPreview.push({ kind: "model_limits.restore", scopeType: "space", scopeId: spaceId, exists: Boolean(prev) });
+        }
+      } else {
+        const prevRes = await client(params.pool).query(
+          `SELECT model_chat_rpm FROM quota_limits WHERE tenant_id = $1 AND scope_type = $2 AND scope_id = $3 LIMIT 1`,
+          [params.tenantId, baseScopeType, baseScopeId],
+        );
+        const prev = prevRes.rowCount ? { modelChatRpm: Number(prevRes.rows[0].model_chat_rpm) } : null;
+        plan.push({ kind: item.kind, scopeType: baseScopeType, scopeId: baseScopeId, modelChatRpm });
+        currentStateDigest.push({ kind: "model.quota_limit", scopeType: baseScopeType, scopeId: baseScopeId, exists: Boolean(prev), prev });
+        rollbackPreview.push({ kind: "model_limits.restore", scopeType: baseScopeType, scopeId: baseScopeId, exists: Boolean(prev) });
+      }
       continue;
     }
 
@@ -1618,8 +1642,36 @@ export async function releaseChangeSet(params: { pool: Pool; tenantId: string; i
     const approvals = await countApprovals({ pool: tx, tenantId: params.tenantId, changesetId: params.id });
     if (approvals < cs.requiredApprovals) throw new Error("changeset_insufficient_approvals");
 
+    const willPublishPolicyVersions = new Set(
+      items
+        .filter((i) => i.kind === "policy.publish")
+        .map((i) => `${String(i.payload?.policyId ?? "")}@${Number(i.payload?.version)}`),
+    );
+
     for (const item of items) {
-      await validateItem(tx, params.tenantId, item);
+      if (item.kind === "policy.set_active") {
+        const policyId = String(item.payload?.policyId ?? "");
+        const version = Number(item.payload?.version);
+        if (willPublishPolicyVersions.has(`${policyId}@${version}`)) {
+          const pv = await tx.query(
+            `
+              SELECT v.status
+              FROM safety_policy_versions v
+              JOIN safety_policies p ON p.policy_id = v.policy_id
+              WHERE p.tenant_id = $1 AND p.policy_id = $2 AND v.version = $3
+              LIMIT 1
+            `,
+            [params.tenantId, policyId, version],
+          );
+          if (!pv.rowCount) throw new Error("invalid_item");
+          const st = String(pv.rows[0].status);
+          if (!["draft", "submitted", "approved", "released"].includes(st)) throw new Error("invalid_item");
+        } else {
+          await validateItem(tx, params.tenantId, item);
+        }
+      } else {
+        await validateItem(tx, params.tenantId, item);
+      }
 
       if (item.kind === "tool.enable" || item.kind === "tool.disable") {
         const toolRef = String(item.payload.toolRef);
@@ -2144,7 +2196,45 @@ export async function releaseChangeSet(params: { pool: Pool; tenantId: string; i
       }
 
       if (item.kind === "model_limits.set") {
-        /* rate limiting removed — skip */
+        const modelChatRpm = Number(item.payload?.modelChatRpm);
+        if (!Number.isFinite(modelChatRpm) || modelChatRpm <= 0) throw new Error("invalid_model_chat_rpm");
+        if (mode === "canary") {
+          for (const spaceId of targets) {
+            const prevRes = await tx.query(
+              `SELECT model_chat_rpm FROM quota_limits WHERE tenant_id = $1 AND scope_type = 'space' AND scope_id = $2 LIMIT 1`,
+              [params.tenantId, spaceId],
+            );
+            const prevRpm = prevRes.rowCount ? Number(prevRes.rows[0].model_chat_rpm) : null;
+            rollback.actions.push({ kind: "model_limits.restore", scopeType: "space", scopeId: spaceId, prevModelChatRpm: prevRpm });
+            await tx.query(
+              `
+                INSERT INTO quota_limits (tenant_id, scope_type, scope_id, model_chat_rpm)
+                VALUES ($1,'space',$2,$3)
+                ON CONFLICT (tenant_id, scope_type, scope_id)
+                DO UPDATE SET model_chat_rpm = EXCLUDED.model_chat_rpm, updated_at = now()
+              `,
+              [params.tenantId, spaceId, modelChatRpm],
+            );
+          }
+        } else {
+          const scopeType = cs.scopeType;
+          const scopeId = cs.scopeId;
+          const prevRes = await tx.query(
+            `SELECT model_chat_rpm FROM quota_limits WHERE tenant_id = $1 AND scope_type = $2 AND scope_id = $3 LIMIT 1`,
+            [params.tenantId, scopeType, scopeId],
+          );
+          const prevRpm = prevRes.rowCount ? Number(prevRes.rows[0].model_chat_rpm) : null;
+          rollback.actions.push({ kind: "model_limits.restore", scopeType, scopeId, prevModelChatRpm: prevRpm });
+          await tx.query(
+            `
+              INSERT INTO quota_limits (tenant_id, scope_type, scope_id, model_chat_rpm)
+              VALUES ($1,$2,$3,$4)
+              ON CONFLICT (tenant_id, scope_type, scope_id)
+              DO UPDATE SET model_chat_rpm = EXCLUDED.model_chat_rpm, updated_at = now()
+            `,
+            [params.tenantId, scopeType, scopeId, modelChatRpm],
+          );
+        }
         continue;
       }
 
@@ -2460,7 +2550,31 @@ export async function promoteChangeSet(params: { pool: Pool; tenantId: string; i
       }
 
       if (item.kind === "model_limits.set") {
-        /* rate limiting removed — skip */
+        const modelChatRpm = Number(item.payload?.modelChatRpm);
+        if (!Number.isFinite(modelChatRpm) || modelChatRpm <= 0) throw new Error("invalid_model_chat_rpm");
+        const scopeType = cs.scopeType;
+        const scopeId = cs.scopeId;
+        const prevRes = await tx.query(
+          `SELECT model_chat_rpm FROM quota_limits WHERE tenant_id = $1 AND scope_type = $2 AND scope_id = $3 LIMIT 1`,
+          [params.tenantId, scopeType, scopeId],
+        );
+        const prevRpm = prevRes.rowCount ? Number(prevRes.rows[0].model_chat_rpm) : null;
+        rollback.actions.push({ kind: "model_limits.restore", scopeType, scopeId, prevModelChatRpm: prevRpm });
+        await tx.query(
+          `
+            INSERT INTO quota_limits (tenant_id, scope_type, scope_id, model_chat_rpm)
+            VALUES ($1,$2,$3,$4)
+            ON CONFLICT (tenant_id, scope_type, scope_id)
+            DO UPDATE SET model_chat_rpm = EXCLUDED.model_chat_rpm, updated_at = now()
+          `,
+          [params.tenantId, scopeType, scopeId, modelChatRpm],
+        );
+        for (const spaceId of targets) {
+          await tx.query(
+            `DELETE FROM quota_limits WHERE tenant_id = $1 AND scope_type = 'space' AND scope_id = $2`,
+            [params.tenantId, spaceId],
+          );
+        }
         continue;
       }
     }
@@ -2578,7 +2692,22 @@ export async function rollbackChangeSet(params: { pool: Pool; tenantId: string; 
         continue;
       }
       if (a.kind === "model_limits.restore") {
-        /* rate limiting removed — skip */
+        const scopeType = String(a.scopeType);
+        const scopeId = String(a.scopeId);
+        const prevRpm = a.prevModelChatRpm === null || a.prevModelChatRpm === undefined ? null : Number(a.prevModelChatRpm);
+        if (prevRpm === null) {
+          await tx.query(`DELETE FROM quota_limits WHERE tenant_id = $1 AND scope_type = $2 AND scope_id = $3`, [params.tenantId, scopeType, scopeId]);
+        } else {
+          await tx.query(
+            `
+              INSERT INTO quota_limits (tenant_id, scope_type, scope_id, model_chat_rpm)
+              VALUES ($1,$2,$3,$4)
+              ON CONFLICT (tenant_id, scope_type, scope_id)
+              DO UPDATE SET model_chat_rpm = EXCLUDED.model_chat_rpm, updated_at = now()
+            `,
+            [params.tenantId, scopeType, scopeId, prevRpm],
+          );
+        }
         continue;
       }
       if (a.kind === "tool_limits.restore") {
@@ -2814,8 +2943,9 @@ export async function rollbackChangeSet(params: { pool: Pool; tenantId: string; 
  */
 const EVAL_ADMISSION_REQUIRED_KINDS: string[] = (() => {
   const raw = process.env.EVAL_ADMISSION_REQUIRED_KINDS;
-  if (raw) return raw.split(",").map((s) => s.trim()).filter(Boolean);
-  return ["tool.set_active", "tool.enable", "policy.", "model_routing.", "schema."];
+  if (raw === undefined) return ["tool.set_active", "tool.enable", "policy.", "model_routing.", "schema."];
+  if (raw === "") return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
 })();
 
 function itemMatchesEvalKinds(kind: string): boolean {
@@ -2852,8 +2982,7 @@ async function computeApprovalGate(params: { pool: Pool; tenantId: string; items
       continue;
     }
     if (item.kind.startsWith("model_routing.")) {
-      risk = "high";
-      requireTwo = true;
+      if (risk !== "high") risk = "medium";
       continue;
     }
     if (!item.kind.startsWith("tool.")) continue;

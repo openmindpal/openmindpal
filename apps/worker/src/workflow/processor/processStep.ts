@@ -1,9 +1,9 @@
 import type { Pool } from "pg";
-import { validateCapabilityEnvelopeV1, tryTransitionStep, tryTransitionRun, normalizeStepStatus, normalizeRunStatus, resolveSupplyChainPolicy, checkTrust, checkDependencyScan, checkSbom, type StepStatus, type RunStatus } from "@openslin/shared";
+import { validateCapabilityEnvelopeV1, resolveSupplyChainPolicy, checkTrust, checkDependencyScan, checkSbom } from "@openslin/shared";
 import { acquireWriteLease, releaseWriteLease } from "../writeLease";
 import { writeAudit } from "./audit";
 import { executeBuiltinTool } from "./builtinTools";
-import { digestObject, isPlainObject, jsonByteLength, scrubBySchema, stableStringify, sha256Hex, validateBySchema } from "./common";
+import { digestObject, isPlainObject, jsonByteLength, scrubBySchema, sha256Hex, stableStringify, validateBySchema } from "./common";
 import { decryptStepInputIfNeeded, encryptStepOutputAndCompensation } from "./encryption";
 import { createArtifact } from "./entity";
 import { executeDynamicSkill } from "./dynamicSkill";
@@ -13,101 +13,14 @@ import { normalizeLimits, normalizeNetworkPolicy, withConcurrency, withTimeout }
 import { computeEvidenceDigestV1, computeSealedDigestV1, deriveIsolation } from "./sealed";
 import { buildSafeToolOutput, computeWriteLeaseResourceRef, isWriteLeaseTool, loadToolVersion, parseToolRef } from "./tooling";
 import { appendCollabEventOnce } from "../../lib/collabEvents";
+// ── 拆分模块导入 ──
+import { checkExecutionInvariants, isSideEffectWriteTool } from "./stepValidation";
+import { validateStepTransition, validateRunTransition, sealRunIfFinished } from "./stepSealing";
+import { extractErrorInfo, getErrorRecoveryDecision } from "./stepErrorClassifier";
 
-/**
- * 架构不变式检查 (P1-12)
- * Warn-only, 不阻塞执行。
- */
-function checkExecutionInvariants(input: {
-  stepId: string;
-  runId: string;
-  tenantId: string;
-  toolRef: string | null;
-  traceId: string;
-  runStatus: string;
-  stepStatus: string;
-  isWriteTool: boolean;
-  hasPolicySnapshotRef: boolean;
-}): void {
-  const violations: Array<{ code: string; message: string }> = [];
-
-  if (!input.tenantId) {
-    violations.push({ code: "inv.missing_tenant_id", message: `step ${input.stepId}: missing tenantId` });
-  }
-  if (!input.traceId || input.traceId === "unknown") {
-    violations.push({ code: "inv.missing_trace_id", message: `step ${input.stepId}: missing/unknown traceId` });
-  }
-  if (!input.toolRef) {
-    violations.push({ code: "inv.missing_tool_ref", message: `step ${input.stepId}: missing toolRef` });
-  }
-  if (input.isWriteTool && !input.hasPolicySnapshotRef) {
-    violations.push({ code: "inv.missing_policy_snapshot", message: `step ${input.stepId}: write tool "${input.toolRef}" missing policySnapshotRef` });
-  }
-
-  for (const v of violations) {
-    console.warn(`[invariant] ${v.code}: ${v.message}`);
-  }
-}
-
+// ── 辅助函数（保留原位置引用兼容）──
 function isSideEffectWriteToolName(toolName: string) {
-  return toolName === "entity.create" || toolName === "entity.update" || toolName === "entity.delete" || toolName === "memory.write" || toolName === "entity.import" || toolName === "space.restore";
-}
-
-async function sealRunIfFinished(params: { pool: Pool; runId: string }) {
-  const res = await params.pool.query("SELECT tenant_id, status, tool_ref, policy_snapshot_ref, input_digest FROM runs WHERE run_id = $1 LIMIT 1", [params.runId]);
-  if (!res.rowCount) return;
-  const r = res.rows[0];
-  const status = String(r.status ?? "");
-  if (!(status === "succeeded" || status === "failed" || status === "canceled" || status === "compensated")) return;
-  const stepsRes = await params.pool.query(
-    "SELECT seq, tool_ref, sealed_output_digest, error_category FROM steps WHERE run_id = $1 ORDER BY seq ASC",
-    [params.runId],
-  );
-  const steps = stepsRes.rows.map((x: any) => ({
-    seq: Number(x.seq ?? 0) || 0,
-    toolRef: x.tool_ref ? String(x.tool_ref) : null,
-    sealedOutputDigest: x.sealed_output_digest ?? null,
-    errorCategory: x.error_category ?? null,
-  }));
-  const sealedInputDigest = computeSealedDigestV1(r.input_digest ?? null);
-  const sealedOutputDigest = computeSealedDigestV1({ status, toolRef: r.tool_ref ?? null, policySnapshotRef: r.policy_snapshot_ref ?? null, steps });
-  await params.pool.query(
-    `
-      UPDATE runs
-      SET sealed_at = COALESCE(sealed_at, now()),
-          sealed_schema_version = COALESCE(sealed_schema_version, 1),
-          sealed_input_digest = COALESCE(sealed_input_digest, $2),
-          sealed_output_digest = COALESCE(sealed_output_digest, $3),
-          nondeterminism_policy = COALESCE(nondeterminism_policy, $4),
-          updated_at = now()
-      WHERE run_id = $1
-    `,
-    [params.runId, sealedInputDigest, sealedOutputDigest, { ignoredJsonPaths: ["latencyMs"] }],
-  );
-}
-
-/**
- * Validate a state transition and log a warning if it would be illegal.
- * Does NOT block execution for backward compatibility.
- */
-function validateStepTransition(stepId: string, fromRaw: string, toRaw: string) {
-  const from = normalizeStepStatus(fromRaw);
-  const to = normalizeStepStatus(toRaw);
-  if (!from || !to) return;
-  const result = tryTransitionStep(from, to);
-  if (!result.ok) {
-    console.warn(`[state-machine] ${result.violation?.message ?? "unknown"} (stepId=${stepId})`);
-  }
-}
-
-function validateRunTransition(runId: string, fromRaw: string, toRaw: string) {
-  const from = normalizeRunStatus(fromRaw);
-  const to = normalizeRunStatus(toRaw);
-  if (!from || !to) return;
-  const result = tryTransitionRun(from, to);
-  if (!result.ok) {
-    console.warn(`[state-machine] ${result.violation?.message ?? "unknown"} (runId=${runId})`);
-  }
+  return isSideEffectWriteTool(toolName);
 }
 
 export async function processStep(params: { pool: Pool; jobId: string; runId: string; stepId: string; masterKey?: string }) {

@@ -142,6 +142,8 @@ npm run dev:web       # Web 前端     → http://localhost:3000
 
 ### 默认访问地址
 
+**应用服务**
+
 | 服务 | 地址 |
 |------|------|
 | Web 首页 | http://localhost:3000 |
@@ -149,6 +151,15 @@ npm run dev:web       # Web 前端     → http://localhost:3000
 | UI 配置管理 | http://localhost:3000/admin/ui |
 | RBAC 管理 | http://localhost:3000/admin/rbac |
 | API 健康检查 | http://localhost:3001/health |
+
+**基础设施**（端口取决于 `.env` 配置）
+
+| 服务 | 默认端口 | 说明 |
+|------|---------|------|
+| PostgreSQL | 5432 | 数据库 |
+| Redis | 6379 | 缓存/队列 |
+| MinIO API | 9000 | 对象存储 |
+| MinIO Console | 9001 | 存储管理界面 |
 
 ### Admin CLI
 

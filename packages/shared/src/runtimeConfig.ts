@@ -142,3 +142,74 @@ export function resolveString(
   const r = resolveRuntimeConfig(envKey, env, overrides);
   return { value: typeof r.value === "string" ? r.value : String(r.value ?? fallback), source: r.source };
 }
+
+// ---------------------------------------------------------------------------
+// Skill 运行时配置访问器 (P0-02)
+// ---------------------------------------------------------------------------
+
+export type SkillRuntimeBackend = "process" | "container" | "remote" | "auto";
+
+/**
+ * 解析 Skill 运行时后端偏好
+ * @returns { value: SkillRuntimeBackend, source }
+ */
+export function resolveSkillRuntimeBackend(
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  overrides: RuntimeConfigOverrides = {},
+): { value: SkillRuntimeBackend; source: RuntimeConfigSource } {
+  const r = resolveRuntimeConfig("SKILL_RUNTIME_BACKEND", env, overrides);
+  const raw = String(r.value ?? "").trim().toLowerCase();
+  if (raw === "container" || raw === "remote" || raw === "auto" || raw === "process") {
+    return { value: raw, source: r.source };
+  }
+  // 回退逻辑：生产环境默认 auto，开发环境默认 process
+  const isProduction = (env.NODE_ENV ?? "development") === "production";
+  return { value: isProduction ? "auto" : "process", source: "default" };
+}
+
+/**
+ * 解析容器运行时镜像
+ */
+export function resolveSkillRuntimeContainerImage(
+  env?: Record<string, string | undefined>,
+  overrides?: RuntimeConfigOverrides,
+): { value: string; source: RuntimeConfigSource } {
+  return resolveString("SKILL_RUNTIME_CONTAINER_IMAGE", env, overrides, "node:20-alpine");
+}
+
+/**
+ * 解析容器运行时用户
+ */
+export function resolveSkillRuntimeContainerUser(
+  env?: Record<string, string | undefined>,
+  overrides?: RuntimeConfigOverrides,
+): { value: string; source: RuntimeConfigSource } {
+  return resolveString("SKILL_RUNTIME_CONTAINER_USER", env, overrides, "1000:1000");
+}
+
+/**
+ * 解析远程 Runner 端点覆盖
+ */
+export function resolveSkillRuntimeRemoteEndpoint(
+  env?: Record<string, string | undefined>,
+  overrides?: RuntimeConfigOverrides,
+): { value: string | null; source: RuntimeConfigSource } {
+  const r = resolveString("SKILL_RUNTIME_REMOTE_ENDPOINT", env, overrides, "");
+  return { value: r.value || null, source: r.source };
+}
+
+/**
+ * 解析容器隔离失败时是否允许回退
+ */
+export function resolveSkillRuntimeContainerFallback(
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  overrides?: RuntimeConfigOverrides,
+): { value: boolean; source: RuntimeConfigSource } {
+  const r = resolveBoolean("SKILL_RUNTIME_CONTAINER_FALLBACK", env, overrides, false);
+  // 生产环境禁止回退（除非显式配置）
+  const isProduction = (env.NODE_ENV ?? "development") === "production";
+  if (isProduction && r.source === "default") {
+    return { value: false, source: "default" };
+  }
+  return r;
+}

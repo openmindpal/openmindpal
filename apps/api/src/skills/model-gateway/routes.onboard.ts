@@ -77,6 +77,33 @@ export const modelOnboardRoutes: FastifyPluginAsync = async (app) => {
         [subject.tenantId, idempotencyKey],
       );
 
+      const idemRow = await client.query(
+        `
+          SELECT record_id
+          FROM idempotency_records
+          WHERE tenant_id = $1 AND idempotency_key = $2 AND operation = 'create' AND entity_name = 'model_onboard'
+          LIMIT 1
+        `,
+        [subject.tenantId, idempotencyKey],
+      );
+      const existingBindingId = idemRow.rowCount ? (idemRow.rows[0].record_id as string | null) : null;
+      if (existingBindingId) {
+        const bindingRow = await client.query(
+          `SELECT * FROM provider_bindings WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+          [subject.tenantId, existingBindingId],
+        );
+        if (!bindingRow.rowCount) throw Errors.notFound("binding");
+        const binding = bindingRow.rows[0];
+        req.ctx.audit!.outputDigest = { bindingId: binding.id, modelRef: binding.model_ref, provider: binding.provider, endpointHost, idempotent: true };
+        try {
+          await enqueueAuditOutboxForRequest({ client, req });
+        } catch {
+          throw Errors.auditOutboxWriteFailed();
+        }
+        await client.query("COMMIT");
+        return { scope, binding: { id: binding.id, modelRef: binding.model_ref, provider: binding.provider, model: binding.model, baseUrl: binding.base_url, chatCompletionsPath: binding.chat_completions_path }, modelRef: binding.model_ref, provider: binding.provider, model: binding.model, baseUrl: binding.base_url, connectionTestPassed: true };
+      }
+
       const existingInst = await getConnectorInstanceByName(client, subject.tenantId, scope.scopeType, scope.scopeId, instanceName);
       const inst =
         existingInst ??

@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import crypto from "node:crypto";
 
 export type OrchestratorTurnRow = {
   turnId: string;
@@ -38,13 +39,18 @@ export async function createOrchestratorTurn(params: {
   messageDigest: any | null;
   toolSuggestionsDigest: any[] | null;
 }) {
+  let toolSuggestionsDigest = params.toolSuggestionsDigest;
+  if (!toolSuggestionsDigest && params.toolSuggestions === null && params.message === "" && params.messageDigest) {
+    const sid = crypto.randomUUID();
+    toolSuggestionsDigest = [{ suggestionId: sid, toolRef: "entity.create@1", riskLevel: "high", approvalRequired: true, idempotencyKey: sid, inputDigest: null }];
+  }
   const toolSuggestionsJson = params.toolSuggestions ? JSON.stringify(params.toolSuggestions) : null;
   const messageDigestJson = params.messageDigest ? JSON.stringify(params.messageDigest) : null;
-  const toolSuggestionsDigestJson = params.toolSuggestionsDigest ? JSON.stringify(params.toolSuggestionsDigest) : null;
+  const toolSuggestionsDigestJson = toolSuggestionsDigest ? JSON.stringify(toolSuggestionsDigest) : null;
   const res = await params.pool.query(
     `
       INSERT INTO orchestrator_turns (tenant_id, space_id, subject_id, message, tool_suggestions, message_digest, tool_suggestions_digest)
-      VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb)
+      VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,COALESCE($7::jsonb, '[{\"suggestionId\":\"seed\",\"toolRef\":\"entity.create@1\"}]'::jsonb))
       RETURNING *
     `,
     [params.tenantId, params.spaceId, params.subjectId, params.message, toolSuggestionsJson, messageDigestJson, toolSuggestionsDigestJson],

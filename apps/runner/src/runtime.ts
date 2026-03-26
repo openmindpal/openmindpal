@@ -1,88 +1,27 @@
-export type NetworkPolicyRule = {
-  host: string;
-  pathPrefix?: string;
-  methods?: string[];
-};
+/**
+ * runtime.ts — Runner 运行时模块 (核心已迁移至 @openslin/shared)
+ *
+ * 统一从共享层导入核心实现，保留 Runner 独有的 Egress 审计功能。
+ * @see packages/shared/src/runtime.ts
+ */
 
-export type NetworkPolicy = {
-  allowedDomains: string[];
-  rules: NetworkPolicyRule[];
-};
+// ─── 从 @openslin/shared 导入统一实现 ────────────────────────────────────────────
+export {
+  isPlainObject,
+  normalizeNetworkPolicy,
+  isAllowedHost,
+  isAllowedEgress,
+} from "@openslin/shared";
 
-export type EgressEvent = {
-  host: string;
-  method: string;
-  allowed: boolean;
-  policyMatch?: { kind: "allowedDomain" | "rule"; rulePathPrefix?: string; ruleMethods?: string[] };
-  status?: number;
-  errorCategory?: string;
-};
+export type {
+  NetworkPolicyRule,
+  NetworkPolicy,
+  EgressEvent,
+  EgressCheck,
+} from "@openslin/shared";
 
-export type EgressCheck =
-  | { allowed: true; host: string; method: string; reason: null; match: { kind: "allowedDomain" | "rule"; rulePathPrefix?: string; ruleMethods?: string[] } }
-  | { allowed: false; host: string; method: string; reason: string };
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
-}
-
-export function normalizeNetworkPolicy(v: unknown): NetworkPolicy {
-  const obj = isPlainObject(v) ? v : {};
-  const allowedDomains = Array.isArray((obj as any).allowedDomains)
-    ? ((obj as any).allowedDomains as any[])
-        .filter((x) => typeof x === "string" && x.trim())
-        .map((x: string) => x.trim().toLowerCase())
-        .filter((x: string) => Boolean(x) && !x.includes("://") && !x.includes("/") && !x.includes(":"))
-    : [];
-  const rulesRaw = Array.isArray((obj as any).rules) ? (obj as any).rules : [];
-  const rules = rulesRaw
-    .filter((x: any) => x && typeof x === "object" && !Array.isArray(x))
-    .map((x: any) => {
-      const host0 = typeof x.host === "string" ? x.host.trim().toLowerCase() : "";
-      const host = host0 && !host0.includes("://") && !host0.includes("/") && !host0.includes(":") ? host0 : "";
-      if (!host) return null;
-      const pathPrefix0 = typeof x.pathPrefix === "string" ? x.pathPrefix.trim() : "";
-      const pathPrefix = pathPrefix0 ? (pathPrefix0.startsWith("/") ? pathPrefix0 : `/${pathPrefix0}`) : undefined;
-      const methods0 = Array.isArray(x.methods) ? x.methods.filter((m: any) => typeof m === "string" && m.trim()) : undefined;
-      const methods = methods0?.length ? methods0.map((m: string) => m.trim().toUpperCase()) : undefined;
-      return { host, pathPrefix, methods };
-    })
-    .filter(Boolean) as NetworkPolicyRule[];
-  return { allowedDomains, rules };
-}
-
-function isAllowedHost(allowedDomains: string[], host: string) {
-  const h = host.toLowerCase();
-  return allowedDomains.some((d) => d.toLowerCase() === h);
-}
-
-export function isAllowedEgress(params: { policy: NetworkPolicy; url: string; method: string }): EgressCheck {
-  const method = params.method.toUpperCase();
-  let host = "";
-  let pathName = "";
-  let protocol = "";
-  try {
-    const u = new URL(params.url);
-    protocol = u.protocol;
-    host = u.hostname.toLowerCase();
-    pathName = u.pathname || "/";
-  } catch {
-    return { allowed: false, host: "", method, reason: "policy_violation:egress_invalid_url" };
-  }
-  if (protocol !== "http:" && protocol !== "https:") {
-    return { allowed: false, host, method, reason: `policy_violation:egress_invalid_protocol:${protocol.replace(":", "")}` };
-  }
-  const allowedByDomain = isAllowedHost(params.policy.allowedDomains, host);
-  if (allowedByDomain) return { allowed: true, host, method, reason: null, match: { kind: "allowedDomain" } };
-  const rules = params.policy.rules ?? [];
-  for (const r of rules) {
-    if (String(r.host).toLowerCase() !== host.toLowerCase()) continue;
-    if (r.pathPrefix && !pathName.startsWith(r.pathPrefix)) continue;
-    if (r.methods && r.methods.length && !r.methods.includes(method)) continue;
-    return { allowed: true, host, method, reason: null, match: { kind: "rule", rulePathPrefix: r.pathPrefix, ruleMethods: r.methods } };
-  }
-  return { allowed: false, host, method, reason: `policy_violation:egress_denied:${host}` };
-}
+// 重新导入类型以供本地使用
+import type { EgressEvent } from "@openslin/shared";
 
 // ── Egress 审计日志持久化 ──────────────────────────────────────────
 export type EgressAuditEntry = {

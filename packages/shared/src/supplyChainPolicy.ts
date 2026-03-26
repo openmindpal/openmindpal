@@ -284,6 +284,15 @@ function handleDegradation(
     };
   }
 
+  if (policy.minIsolation === "remote") {
+    return {
+      level: bestBelow,
+      degraded: false,
+      denied: true,
+      deniedReason: `${bestBelow} < minimum ${policy.minIsolation}; remote runner required`,
+    };
+  }
+
   if (policy.degradationStrategy === "deny") {
     return {
       level: bestBelow,
@@ -351,4 +360,116 @@ export function supplyChainGate(params: {
     isolation,
     violations,
   };
+}
+
+// ---------------------------------------------------------------------------
+// 生产隔离基线启动校验 (P0-04)
+// ---------------------------------------------------------------------------
+
+export interface ProductionBaselineResult {
+  /** 是否通过校验 */
+  valid: boolean;
+  /** 校验失败原因 */
+  violations: string[];
+  /** 策略快照 */
+  policy: SupplyChainPolicyConfig;
+}
+
+/**
+ * 生产隔离基线启动校验。
+ *
+ * 在 Worker/Runner 启动期调用，确保生产环境满足最低隔离要求。
+ * 不满足时拒绝启动，而非静默降级。
+ *
+ * @param env 环境变量（默认 process.env）
+ * @param availableRuntimes 可用的运行时后端
+ * @returns 校验结果
+ */
+export function validateProductionBaseline(
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  availableRuntimes: IsolationLevel[] = ["process"],
+): ProductionBaselineResult {
+  const policy = resolveSupplyChainPolicy(env);
+  const violations: string[] = [];
+
+  // 非生产环境不强制校验
+  if (!policy.isProduction) {
+    return { valid: true, violations: [], policy };
+  }
+
+  // 如果启用了 unsafe 模式，警告但不拒绝
+  if (policy.unsafeAllowed) {
+    console.warn(
+      "[supply-chain] WARNING: SKILL_RUNTIME_UNSAFE_ALLOW=true in production. " +
+      "Security isolation checks are BYPASSED. This is NOT recommended."
+    );
+    return { valid: true, violations: [], policy };
+  }
+
+  // 检查可用运行时是否满足最低隔离要求
+  const availableSet = new Set(availableRuntimes);
+  const minOrder = ISOLATION_ORDER[policy.minIsolation];
+
+  let bestAvailable: IsolationLevel | null = null;
+  for (const candidate of ["remote", "container", "process"] as IsolationLevel[]) {
+    if (availableSet.has(candidate)) {
+      bestAvailable = candidate;
+      break;
+    }
+  }
+
+  if (!bestAvailable) {
+    violations.push("no_runtime_available");
+  } else if (ISOLATION_ORDER[bestAvailable] < minOrder) {
+    violations.push(
+      `isolation_below_minimum:best_available=${bestAvailable},minimum=${policy.minIsolation}`
+    );
+  }
+
+  // 检查附加的生产必需配置
+  if (policy.trustEnforced && !env.SKILL_TRUSTED_PUBKEYS_JSON && !env.SKILL_TRUSTED_PUBKEY_PEM) {
+    violations.push("trust_enforced_but_no_pubkey_configured");
+  }
+
+  // 检查主密钥是否配置
+  const masterKey = String(env.API_MASTER_KEY ?? "").trim();
+  if (!masterKey || masterKey === "dev-master-key-change-me") {
+    violations.push("api_master_key_not_configured_or_default");
+  }
+
+  return {
+    valid: violations.length === 0,
+    violations,
+    policy,
+  };
+}
+
+/**
+ * 启动时强制校验生产基线，不满足时抛出错误。
+ *
+ * @param componentName 组件名称（用于日志）
+ * @param env 环境变量
+ * @param availableRuntimes 可用的运行时后端
+ * @throws Error 当生产环境不满足最低隔离要求时
+ */
+export function assertProductionBaseline(
+  componentName: string,
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  availableRuntimes: IsolationLevel[] = ["process"],
+): void {
+  const result = validateProductionBaseline(env, availableRuntimes);
+  if (!result.valid) {
+    const msg = [
+      `[${componentName}] Production baseline validation FAILED.`,
+      `Violations: ${result.violations.join(", ")}`,
+      `Policy: minIsolation=${result.policy.minIsolation}, trustEnforced=${result.policy.trustEnforced}`,
+      `Startup aborted to prevent insecure operation.`,
+    ].join(" ");
+    console.error(msg);
+    throw new Error(`production_baseline_validation_failed:${result.violations.join(",")}`);
+  }
+  console.log(
+    `[${componentName}] Production baseline validation passed. ` +
+    `minIsolation=${result.policy.minIsolation}, trustEnforced=${result.policy.trustEnforced}`
+  );
 }

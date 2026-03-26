@@ -121,6 +121,58 @@ export async function orchestrateTurn(params: {
     }
   }
 
+  if (params.spaceId && toolSuggestions.length === 0) {
+    const toolRef = await resolveEffectiveToolRef({ pool: params.pool, tenantId: params.tenantId, spaceId: params.spaceId ?? null, name: "knowledge.search" });
+    if (toolRef) {
+      const enabled = await isToolEnabled({ pool: params.pool, tenantId: params.tenantId, spaceId: params.spaceId, toolRef });
+      if (enabled) {
+        const ver = await getToolVersionByRef(params.pool, params.tenantId, toolRef);
+        if (!ver) throw Errors.badRequest("工具版本不存在");
+        const def = await getToolDefinition(params.pool, params.tenantId, "knowledge.search");
+        const inputDraft = pruneDraftByInputSchema(ver.inputSchema, buildKnowledgeQueryDraft(msg));
+        try {
+          validateToolInput(ver.inputSchema, inputDraft);
+          toolSuggestions.push({
+            toolRef,
+            inputDraft,
+            scope: def?.scope ?? "read",
+            resourceType: def?.resourceType ?? "knowledge",
+            action: def?.action ?? "search",
+            riskLevel: def?.riskLevel ?? "low",
+            approvalRequired: def?.approvalRequired ?? false,
+            idempotencyKey: crypto.randomUUID(),
+          });
+        } catch {
+          throw Errors.badRequest("工具入参草稿不合法");
+        }
+      }
+    }
+    if (toolSuggestions.length === 0) {
+      const toolRef2 = await resolveEffectiveToolRef({ pool: params.pool, tenantId: params.tenantId, spaceId: params.spaceId ?? null, name: "entity.create" });
+      if (toolRef2) {
+        const ver2 = await getToolVersionByRef(params.pool, params.tenantId, toolRef2);
+        if (!ver2) throw Errors.badRequest("工具版本不存在");
+        const def2 = await getToolDefinition(params.pool, params.tenantId, "entity.create");
+        const inputDraft2 = pruneDraftByInputSchema(ver2.inputSchema, defaultNotesDraft());
+        try {
+          validateToolInput(ver2.inputSchema, inputDraft2);
+          toolSuggestions.push({
+            toolRef: toolRef2,
+            inputDraft: inputDraft2,
+            scope: def2?.scope ?? "write",
+            resourceType: def2?.resourceType ?? "entity",
+            action: def2?.action ?? "create",
+            riskLevel: def2?.riskLevel ?? "high",
+            approvalRequired: def2?.approvalRequired ?? true,
+            idempotencyKey: crypto.randomUUID(),
+          });
+        } catch {
+          throw Errors.badRequest("工具入参草稿不合法");
+        }
+      }
+    }
+  }
+
   const replyText =
     toolSuggestions.length || uiDirective
       ? { "zh-CN": "已生成建议。", "en-US": "Suggestions generated." }

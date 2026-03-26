@@ -121,7 +121,7 @@ export const rbacRoutes: FastifyPluginAsync = async (app) => {
       limit,
     ]);
     req.ctx.audit!.outputDigest = { count: res.rows.length };
-    return { items: res.rows };
+    return { items: res.rows, roles: res.rows };
   });
 
   app.get("/rbac/roles/:roleId", async (req) => {
@@ -180,7 +180,7 @@ export const rbacRoutes: FastifyPluginAsync = async (app) => {
       [limit],
     );
     req.ctx.audit!.outputDigest = { count: res.rows.length };
-    return { items: res.rows };
+    return { items: res.rows, permissions: res.rows };
   });
 
   app.post("/rbac/roles/:roleId/permissions", async (req) => {

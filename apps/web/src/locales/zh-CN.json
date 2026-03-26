@@ -430,6 +430,7 @@
   "chat.error.BINDING_MISSING": "未配置模型绑定，请在「设置 > 模型接入」中配置",
   "chat.error.POLICY_VIOLATION": "请求被安全策略拦截，请联系管理员",
   "chat.error.INTERNAL_ERROR": "服务内部错误，请稍后重试",
+  "chat.error.EMPTY_REPLY": "模型未返回内容，请重试或换一种问法",
   "chat.stream.stale": "连接中断（长时间无返回），请重试",
   "chat.network.restored": "网络已恢复，可点击重试",
   "chat.nl2ui.error.default": "界面生成失败",

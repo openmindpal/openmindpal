@@ -19,7 +19,7 @@ import type { Pool } from "pg";
 import type { Queue } from "bullmq";
 import type { CapabilityEnvelopeV1 } from "@openslin/shared";
 import { Errors } from "../lib/errors";
-import { getToolDefinition, getToolVersionByRef, type ToolDefinition, type ToolVersion } from "../modules/tools/toolRepo";
+import { getLatestReleasedToolVersion, getToolDefinition, getToolVersionByRef, type ToolDefinition, type ToolVersion } from "../modules/tools/toolRepo";
 import { resolveEffectiveToolRef } from "../modules/tools/resolve";
 import { isToolEnabled } from "../modules/governance/toolGovernanceRepo";
 import { admitToolExecution, networkPolicyDigest, type ExecutionAdmissionResult } from "../modules/tools/executionAdmission";
@@ -71,24 +71,34 @@ export async function resolveAndValidateTool(params: ResolveToolParams): Promise
   const toolName = idx > 0 ? rawToolRef.slice(0, idx) : rawToolRef;
 
   // Resolve effective toolRef
-  const toolRef = idx > 0
-    ? rawToolRef
-    : await resolveEffectiveToolRef({ pool, tenantId, spaceId, name: toolName });
+  let toolRef = idx > 0 ? rawToolRef : await resolveEffectiveToolRef({ pool, tenantId, spaceId, name: toolName });
   if (!toolRef) {
-    throw Errors.badRequest("工具版本不存在");
+    throw Errors.notFound("工具版本");
   }
 
   // Validate version
-  const version = await getToolVersionByRef(pool, tenantId, toolRef);
+  let version = await getToolVersionByRef(pool, tenantId, toolRef);
   if (!version) {
-    throw Errors.badRequest("工具版本不存在");
+    throw Errors.notFound("工具版本");
   }
   if (version.status !== "released") {
     throw Errors.badRequest("工具未发布");
   }
 
   // Validate enabled
-  const enabled = await isToolEnabled({ pool, tenantId, spaceId, toolRef });
+  let enabled = await isToolEnabled({ pool, tenantId, spaceId, toolRef });
+  if (!enabled && idx <= 0) {
+    const latest = await getLatestReleasedToolVersion(pool, tenantId, toolName);
+    const latestRef = latest?.toolRef ?? null;
+    if (latestRef && latestRef !== toolRef) {
+      const latestEnabled = await isToolEnabled({ pool, tenantId, spaceId, toolRef: latestRef });
+      if (latestEnabled && latest) {
+        toolRef = latestRef;
+        version = latest;
+        enabled = true;
+      }
+    }
+  }
   if (!enabled) {
     throw Errors.toolDisabled();
   }

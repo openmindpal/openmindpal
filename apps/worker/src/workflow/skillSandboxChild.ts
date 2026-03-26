@@ -1,66 +1,19 @@
+/**
+ * skillSandboxChild.ts — Worker 侧 Skill 沙箱子进程
+ *
+ * 使用统一的沙箱基线模块，确保拦截行为一致。
+ * @see packages/shared/src/skillSandbox.ts
+ */
 import Module from "node:module";
 import type { EgressEvent, NetworkPolicy } from "./processor/runtime";
 import { isAllowedEgress, normalizeNetworkPolicy } from "./processor/runtime";
-
-function pickExecute(mod: any) {
-  if (mod && typeof mod.execute === "function") return mod.execute as (req: any) => Promise<any>;
-  if (mod && mod.default && typeof mod.default.execute === "function") return mod.default.execute as (req: any) => Promise<any>;
-  if (mod && typeof mod.default === "function") return mod.default as (req: any) => Promise<any>;
-  return null;
-}
-
-function sandboxMode(): "strict" | "compat" {
-  const raw = String(process.env.SKILL_SANDBOX_MODE ?? "").trim().toLowerCase();
-  if (raw === "strict") return "strict";
-  if (raw === "compat") return "compat";
-  return process.env.NODE_ENV === "production" ? "strict" : "compat";
-}
-
-function forbiddenModules(mode: "strict" | "compat") {
-  const base = new Set<string>([
-    "node:child_process",
-    "child_process",
-    "node:net",
-    "net",
-    "node:tls",
-    "tls",
-    "node:dns",
-    "dns",
-    "node:http",
-    "http",
-    "node:https",
-    "https",
-    "node:dgram",
-    "dgram",
-  ]);
-  if (mode === "compat") return base;
-  const strict = [
-    "node:fs",
-    "fs",
-    "node:fs/promises",
-    "fs/promises",
-    "node:worker_threads",
-    "worker_threads",
-    "node:vm",
-    "vm",
-    "node:inspector",
-    "inspector",
-    "node:async_hooks",
-    "async_hooks",
-    "pg",
-    "mysql",
-    "mysql2",
-    "sqlite3",
-    "better-sqlite3",
-    "mongodb",
-    "oracledb",
-    "mssql",
-    "redis",
-    "ioredis",
-  ];
-  for (const x of strict) base.add(x);
-  return base;
-}
+import {
+  resolveSandboxMode,
+  buildForbiddenModulesSet,
+  SANDBOX_FORBIDDEN_MODULES_DATABASE,
+  pickExecute,
+  createModuleLoadInterceptor,
+} from "@openslin/shared";
 
 async function main() {
   process.on("message", async (m: any) => {
@@ -71,8 +24,9 @@ async function main() {
     const egress: EgressEvent[] = [];
     const networkPolicy: NetworkPolicy = normalizeNetworkPolicy(payload?.networkPolicy);
     const originalFetch = globalThis.fetch;
-    const mode = sandboxMode();
-    const denied = forbiddenModules(mode);
+    const mode = resolveSandboxMode();
+    // Worker 侧额外禁止数据库模块
+    const denied = buildForbiddenModulesSet(mode, SANDBOX_FORBIDDEN_MODULES_DATABASE);
     const origLoad = (Module as any)._load as any;
     const origNodeExt = (Module as any)._extensions?.[".node"] as any;
 
@@ -100,15 +54,8 @@ async function main() {
       if (typeof originalFetch !== "function") throw new Error("skill_sandbox_missing_fetch");
       globalThis.fetch = wrappedFetch as any;
 
-      (Module as any)._load = function (request: any, parent: any, isMain: any) {
-        const req = String(request ?? "");
-        const norm = req.startsWith("node:") ? req : req ? `node:${req}` : req;
-        if (denied.has(req) || denied.has(norm)) {
-          const base = req.startsWith("node:") ? req.slice("node:".length) : req;
-          throw new Error(`policy_violation:skill_forbidden_import:${base}`);
-        }
-        return origLoad.call(this, request, parent, isMain);
-      };
+      // 使用共享的模块拦截器
+      (Module as any)._load = createModuleLoadInterceptor(origLoad, denied);
       if ((Module as any)._extensions) {
         (Module as any)._extensions[".node"] = function () {
           throw new Error("policy_violation:skill_native_addon_not_allowed");

@@ -175,15 +175,63 @@ export type { ConfigLevel, ConfigScope, ConfigValueType, ConfigEntry } from "./c
 
 export {
   resolveRuntimeConfig, resolveAllRuntimeConfigs,
-  type RuntimeConfigSource, type ResolvedConfig, type RuntimeConfigOverrides,
+  resolveNumber, resolveBoolean, resolveString,
+  // Skill 运行时配置访问器 (P0-02)
+  resolveSkillRuntimeBackend,
+  resolveSkillRuntimeContainerImage,
+  resolveSkillRuntimeContainerUser,
+  resolveSkillRuntimeRemoteEndpoint,
+  resolveSkillRuntimeContainerFallback,
+  type RuntimeConfigSource, type ResolvedConfig, type RuntimeConfigOverrides, type SkillRuntimeBackend,
 } from "./runtimeConfig";
 
 export {
   resolveSupplyChainPolicy, checkTrust, checkDependencyScan, checkSbom,
   decideIsolation, supplyChainGate,
+  // 生产基线校验 (P0-04)
+  validateProductionBaseline,
+  assertProductionBaseline,
 } from "./supplyChainPolicy";
 export type {
   IsolationLevel, ScanMode, DegradationStrategy, SupplyChainPolicyConfig,
   TrustCheckResult, ScanCheckResult, SbomCheckResult,
   IsolationDecision, SupplyChainGateResult,
+  ProductionBaselineResult,
 } from "./supplyChainPolicy";
+
+// ─── 统一运行时模块 (P0-01) ───────────────────────────────────────────────────
+export {
+  isPlainObject,
+  normalizeLimits,
+  normalizeNetworkPolicy,
+  isAllowedHost,
+  isAllowedEgress,
+  runtimeFetch,
+  withConcurrency,
+  withTimeout,
+} from "./runtime";
+export type {
+  RuntimeLimits,
+  NetworkPolicyRule,
+  NetworkPolicy,
+  EgressEvent,
+  EgressCheck,
+} from "./runtime";
+
+// ─── Skill 沙箱基线模块 (P0-03) ───────────────────────────────────────────
+export {
+  SANDBOX_FORBIDDEN_MODULES_BASE,
+  SANDBOX_FORBIDDEN_MODULES_STRICT,
+  SANDBOX_FORBIDDEN_MODULES_DATABASE,
+  resolveSandboxMode,
+  buildForbiddenModulesSet,
+  lockdownDynamicCodeExecution,
+  restoreDynamicCodeExecution,
+  pickExecute,
+  checkModuleForbidden,
+  createModuleLoadInterceptor,
+} from "./skillSandbox";
+export type {
+  SandboxMode,
+  DynamicCodeLockState,
+} from "./skillSandbox";
